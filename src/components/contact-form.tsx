@@ -21,13 +21,12 @@ const STATUS = ["new", "active", "rejected", "old"] as const;
 const STATUS_LABEL: Record<string, string> = { new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Storico" };
 
 export function ContactForm({ initial, onSaved }: Props) {
-  const [form, setForm] = useState<any>({
+  const [form, setForm] = useState<any>(() => ({
     first_name: "", last_name: "", email: "", phone: "", mobile: "",
     city_id: null, raw_city: "", raw_province: "", status: "new", notes: "",
-    category_ids: [],
     ...(initial ?? {}),
     category_ids: initial?.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
-  });
+  }));
   const [saving, setSaving] = useState(false);
   const [cityQuery, setCityQuery] = useState("");
 
