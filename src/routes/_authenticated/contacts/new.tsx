@@ -12,7 +12,7 @@ function NewContactPage() {
   const nav = useNavigate();
   return (
     <AppShell title="Nuovo contatto" subtitle="Aggiungi un contatto alla rubrica">
-      <ContactForm onSaved={(id) => nav({ to: "/contacts/$id", params: { id } })} />
+      <ContactForm onSaved={(id: string) => nav({ to: "/contacts/$id", params: { id } })} />
     </AppShell>
   );
 }
