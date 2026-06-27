@@ -15,44 +15,42 @@ export function useAuthUser() {
   const [profile, setProfile] = useState<ResUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  async function loadProfile(currentUser: User | null) {
+    if (!currentUser) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("res_users")
+      .select("id, name, email, role, status")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+    setProfile((data as ResUser) ?? null);
+    setLoading(false);
+  }
+
+  async function refresh() {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user);
+    await loadProfile(data.user);
+  }
+
   useEffect(() => {
     let mounted = true;
-
-    async function load(currentUser: User | null) {
-      if (!currentUser) {
-        if (mounted) {
-          setProfile(null);
-          setLoading(false);
-        }
-        return;
-      }
-      const { data } = await supabase
-        .from("res_users")
-        .select("id, name, email, role, status")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-      if (mounted) {
-        setProfile((data as ResUser) ?? null);
-        setLoading(false);
-      }
-    }
-
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return;
       setUser(data.user);
-      load(data.user);
+      loadProfile(data.user);
     });
-
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setUser(session?.user ?? null);
-      load(session?.user ?? null);
+      loadProfile(session?.user ?? null);
     });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  return { user, profile, loading };
+  return { user, profile, loading, refresh };
 }
+

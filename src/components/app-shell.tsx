@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<string, string> = {
   volunteer: "Volontario",
 };
 
-export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
+export function AppShell({ children, title, subtitle, actions }: { children: ReactNode; title?: string; subtitle?: string; actions?: ReactNode }) {
   const { profile } = useAuthUser();
   return (
     <SidebarProvider>
@@ -34,7 +34,15 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-8">{children}</main>
+          <main className="flex-1 p-4 md:p-8">
+            {(subtitle || actions) && (
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
+                {actions && <div>{actions}</div>}
+              </div>
+            )}
+            {children}
+          </main>
         </div>
       </div>
     </SidebarProvider>
