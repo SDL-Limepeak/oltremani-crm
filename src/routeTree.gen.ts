@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCitiesRouteImport } from './routes/_authenticated/cities'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as AuthenticatedContactsIndexRouteImport } from './routes/_authenticated/contacts/index'
+import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as AuthenticatedContactsNewRouteImport } from './routes/_authenticated/contacts/new'
 import { Route as AuthenticatedContactsIdRouteImport } from './routes/_authenticated/contacts/$id'
 
@@ -79,6 +80,11 @@ const AuthenticatedContactsIndexRoute =
     path: '/contacts/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
+  id: '/api/public/contact',
+  path: '/api/public/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedContactsNewRoute =
   AuthenticatedContactsNewRouteImport.update({
     id: '/contacts/new',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof AuthenticatedUsersRoute
   '/contacts/$id': typeof AuthenticatedContactsIdRoute
   '/contacts/new': typeof AuthenticatedContactsNewRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/contacts/': typeof AuthenticatedContactsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersRoute
   '/contacts/$id': typeof AuthenticatedContactsIdRoute
   '/contacts/new': typeof AuthenticatedContactsNewRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/contacts': typeof AuthenticatedContactsIndexRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/contacts/$id': typeof AuthenticatedContactsIdRoute
   '/_authenticated/contacts/new': typeof AuthenticatedContactsNewRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/_authenticated/contacts/': typeof AuthenticatedContactsIndexRoute
 }
 export interface FileRouteTypes {
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/contacts/$id'
     | '/contacts/new'
+    | '/api/public/contact'
     | '/contacts/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/contacts/$id'
     | '/contacts/new'
+    | '/api/public/contact'
     | '/contacts'
   id:
     | '__root__'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users'
     | '/_authenticated/contacts/$id'
     | '/_authenticated/contacts/new'
+    | '/api/public/contact'
     | '/_authenticated/contacts/'
   fileRoutesById: FileRoutesById
 }
@@ -185,6 +197,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicContactRoute: typeof ApiPublicContactRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -266,6 +279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContactsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/contact': {
+      id: '/api/public/contact'
+      path: '/api/public/contact'
+      fullPath: '/api/public/contact'
+      preLoaderRoute: typeof ApiPublicContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/contacts/new': {
       id: '/_authenticated/contacts/new'
       path: '/contacts/new'
@@ -316,6 +336,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicContactRoute: ApiPublicContactRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
