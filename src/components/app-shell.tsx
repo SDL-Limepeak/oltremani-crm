@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<string, string> = {
   volunteer: "Volontario",
 };
 
-export function AppShell({ children, title, subtitle, actions }: { children: ReactNode; title?: string; subtitle?: string; actions?: ReactNode }) {
+export function AppShell({ children, title, subtitle, actions }: { children: ReactNode; title?: ReactNode; subtitle?: string; actions?: ReactNode }) {
   const { profile } = useAuthUser();
   return (
     <SidebarProvider>

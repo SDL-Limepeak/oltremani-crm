@@ -19,11 +19,12 @@ type Props = {
 
 const STATUS = ["new", "active", "rejected", "old"] as const;
 const STATUS_LABEL: Record<string, string> = { new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Storico" };
+const PARTNER_TYPE_LABEL: Record<string, string> = { individual: "Non specificato", activist: "Attivista", citizen: "Cittadino" };
 
 export function ContactForm({ initial, onSaved }: Props) {
   const [form, setForm] = useState<any>(() => ({
     first_name: "", last_name: "", email: "", phone: "", mobile: "",
-    city_id: null, raw_city: "", raw_province: "", status: "new", notes: "",
+    city_id: null, raw_city: "", raw_province: "", status: "new", partner_type: "individual", notes: "",
     ...(initial ?? {}),
     category_ids: initial?.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
   }));
@@ -62,6 +63,7 @@ export function ContactForm({ initial, onSaved }: Props) {
         raw_city: form.raw_city || null,
         raw_province: form.raw_province || null,
         status: form.status,
+        partner_type: form.partner_type,
         notes: form.notes || null,
         category_ids: form.category_ids,
       };
@@ -85,6 +87,17 @@ export function ContactForm({ initial, onSaved }: Props) {
           <Select value={form.status} onValueChange={v => set("status", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{STATUS.map(s => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Tipo</Label>
+          <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="individual">Non specificato</SelectItem>
+              <SelectItem value="activist">Attivista</SelectItem>
+              <SelectItem value="citizen">Cittadino</SelectItem>
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-2 md:col-span-2">

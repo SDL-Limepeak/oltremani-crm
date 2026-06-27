@@ -8,7 +8,7 @@ const SubInput = z.object({
   year: z.number().int().min(2000).max(2100).optional(),
   start_date: z.string().optional(),
   end_date: z.string().nullable().optional(),
-  status: z.enum(["active", "inactive"]).optional(),
+  status: z.enum(["active", "inactive", "revoked"]).optional(),
   notes: z.string().nullable().optional(),
 });
 
@@ -34,6 +34,14 @@ export const upsertSubscription = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const year = data.year ?? new Date().getFullYear();
+
+    let membershipNumber: string | null = null;
+    if (!data.id) {
+      // Generate progressive number: YYXXXXX
+      const { data: numData } = await (supabase as any).rpc("generate_membership_number", { p_year: year });
+      membershipNumber = (numData as string) ?? null;
+    }
+
     const payload: any = {
       partner_id: data.partner_id,
       year,
@@ -43,6 +51,8 @@ export const upsertSubscription = createServerFn({ method: "POST" })
       notes: data.notes ?? null,
       updated_by: userId,
     };
+    if (membershipNumber) payload.membership_number = membershipNumber;
+
     let row;
     if (data.id) {
       const { data: old } = await supabase.from("membership_subscription").select("*").eq("id", data.id).maybeSingle();
@@ -64,4 +74,24 @@ export const upsertSubscription = createServerFn({ method: "POST" })
       });
     }
     return row;
+  });
+
+export const revokeSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), partner_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: old } = await supabase.from("membership_subscription").select("*").eq("id", data.id).maybeSingle();
+    const { data: upd, error } = await supabase
+      .from("membership_subscription")
+      .update({ status: "revoked", updated_by: userId })
+      .eq("id", data.id)
+      .select()
+      .single();
+    if (error) throw error;
+    await supabase.from("audit_log").insert({
+      log_type: "subscription_change", action: "update", model_name: "membership_subscription",
+      record_id: data.id, old_values_json: old, new_values_json: upd, changed_by_user_id: userId, source: "ui",
+    });
+    return upd;
   });

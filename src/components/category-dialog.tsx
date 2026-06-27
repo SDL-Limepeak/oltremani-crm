@@ -9,7 +9,7 @@ export type CategoryFormValues = {
   id?: string;
   name: string;
   parent_id: string | null;
-  category_type: "territorial" | "system";
+  category_type: "territorial";
   status: "active" | "inactive";
   president_first_name?: string | null;
   president_last_name?: string | null;
@@ -40,16 +40,6 @@ export function CategoryDialog({ open, onOpenChange, initial, onSaved }: { open:
         <DialogHeader><DialogTitle>{initial?.id ? "Modifica gruppo" : "Nuovo gruppo"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-2 md:col-span-2"><Label>Nome</Label><Input value={f.name} onChange={e => set("name", e.target.value)} /></div>
-          <div className="space-y-2">
-            <Label>Tipo</Label>
-            <Select value={f.category_type} onValueChange={v => set("category_type", v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="territorial">Territoriale</SelectItem>
-                <SelectItem value="system">Sistema</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-2">
             <Label>Stato</Label>
             <Select value={f.status} onValueChange={v => set("status", v as any)}>

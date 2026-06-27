@@ -5,12 +5,23 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export const listCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await (context.supabase as any)
       .from("res_partner_category")
-      .select("*")
+      .select("*, res_partner_category_rel(res_partner(partner_type))")
       .order("name");
     if (error) throw error;
-    return data ?? [];
+
+    return (data ?? []).map((cat: any) => {
+      const rels: any[] = cat.res_partner_category_rel ?? [];
+      let activist = 0, citizen = 0;
+      for (const r of rels) {
+        const t = r.res_partner?.partner_type;
+        if (t === "activist") activist++;
+        else if (t === "citizen") citizen++;
+      }
+      const { res_partner_category_rel: _, ...rest } = cat;
+      return { ...rest, activist, citizen, memberCount: rels.length };
+    });
   });
 
 const CatInput = z.object({

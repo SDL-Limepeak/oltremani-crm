@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ListFilters = z.object({
   status: z.string().optional(),
+  partner_type: z.string().optional(),
   category_id: z.string().uuid().optional(),
   city_id: z.string().uuid().optional(),
   province_code: z.string().optional(),
@@ -22,7 +23,7 @@ export const listPartners = createServerFn({ method: "POST" })
     let q = supabase
       .from("res_partner")
       .select(
-        `id, first_name, last_name, display_name, email, phone, mobile, status, raw_city, raw_province, city_id, created_at,
+        `id, first_name, last_name, display_name, email, phone, mobile, status, partner_type, raw_city, raw_province, city_id, created_at,
          res_city(id, name, province_code),
          res_partner_category_rel(category_id, res_partner_category(id, name, category_type)),
          membership_subscription(id, year, status)`,
@@ -32,6 +33,7 @@ export const listPartners = createServerFn({ method: "POST" })
       .range(data.offset, data.offset + data.limit - 1);
 
     if (data.status) q = q.eq("status", data.status);
+    if (data.partner_type) q = q.eq("partner_type", data.partner_type);
     if (data.city_id) q = q.eq("city_id", data.city_id);
     if (data.search) {
       const s = `%${data.search}%`;
@@ -95,6 +97,7 @@ const PartnerInput = z.object({
   raw_city: z.string().nullable().optional(),
   raw_province: z.string().nullable().optional(),
   status: z.enum(["new", "active", "rejected", "old"]).optional(),
+  partner_type: z.enum(["individual", "activist", "citizen"]).optional(),
   notes: z.string().max(5000).nullable().optional(),
   category_ids: z.array(z.string().uuid()).optional(),
 });
@@ -241,4 +244,32 @@ export const deletePartner = createServerFn({ method: "POST" })
       record_id: data.id, old,
     });
     return { ok: true };
+  });
+
+export const recordConsent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    partner_id: z.string().uuid(),
+    accepted: z.boolean(),
+    channel: z.string().min(1),
+    notes: z.string().nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await (supabase as any)
+      .from("privacy_consent")
+      .insert({
+        partner_id: data.partner_id,
+        consent_type: "privacy_policy",
+        accepted: data.accepted,
+        accepted_at: data.accepted ? new Date().toISOString() : null,
+        source: "ui",
+        operator_id: userId,
+        channel: data.channel,
+        notes: data.notes ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return row;
   });

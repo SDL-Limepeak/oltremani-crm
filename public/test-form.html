@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test Form Pubblico · Oltremani</title>
+  <style>
+    :root {
+      --orange: #E8921E;
+      --navy:   #1E3271;
+      --bg:     #f5f4f1;
+      --card:   #ffffff;
+      --border: #e2dfd9;
+      --text:   #1a1917;
+      --muted:  #6b6860;
+      --green:  #16a34a;
+      --red:    #dc2626;
+      --r: 14px;
+      --font: system-ui, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px 16px 60px; }
+
+    .page-header {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--navy); color: #fff; padding: 16px 24px;
+      border-radius: var(--r); margin-bottom: 24px;
+    }
+    .page-header .arc { flex-shrink: 0; }
+    .page-header h1 { font-size: 18px; font-weight: 700; }
+    .page-header p  { font-size: 12px; opacity: .65; margin-top: 2px; }
+
+    .badge-dev {
+      display: inline-block; background: #f59e0b22; color: #b45309;
+      border: 1px solid #f59e0b55; border-radius: 6px;
+      font-size: 11px; font-weight: 600; padding: 2px 8px; margin-left: 10px; vertical-align: middle;
+    }
+
+    .layout { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 960px; margin: 0 auto; }
+    @media (min-width: 720px) { .layout { grid-template-columns: 1fr 340px; } }
+
+    .card { background: var(--card); border-radius: var(--r); padding: 24px; box-shadow: 0 1px 4px #0001; }
+    .card-title { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+    .section { margin-bottom: 18px; }
+    .section label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+    .section input, .section select {
+      width: 100%; padding: 9px 12px; font-size: 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: #fafaf9; color: var(--text); outline: none; transition: border-color .15s;
+    }
+    .section input:focus, .section select:focus { border-color: var(--orange); }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .config-bar {
+      background: #fff8f0; border: 1.5px solid #f59e0b44; border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 20px; max-width: 960px; margin-left: auto; margin-right: auto;
+    }
+    .config-bar label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .config-bar .cfg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+    .config-bar input {
+      width: 100%; padding: 7px 10px; font-size: 13px; font-family: monospace;
+      border: 1.5px solid var(--border); border-radius: 7px; background: #fafaf9;
+    }
+
+    .privacy-group { display: flex; flex-direction: column; gap: 10px; }
+    .check-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+    .check-row input[type=checkbox] { margin-top: 2px; accent-color: var(--orange); width: 16px; height: 16px; flex-shrink: 0; }
+    .check-row span { font-size: 13px; line-height: 1.45; }
+    .check-row small { display: block; color: var(--muted); font-size: 11px; }
+    .required-note { font-size: 11px; color: var(--red); }
+
+    .btn-submit {
+      width: 100%; background: var(--orange); color: #fff; border: none;
+      padding: 12px; font-size: 15px; font-weight: 700; border-radius: 9px; cursor: pointer;
+      margin-top: 6px; transition: opacity .15s;
+    }
+    .btn-submit:hover { opacity: .88; }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Result panel */
+    #result { display: none; }
+    .result-ok   { border-left: 4px solid var(--green); background: #f0fdf4; padding: 14px 16px; border-radius: 8px; margin-bottom: 12px; }
+    .result-err  { border-left: 4px solid var(--red);   background: #fff0f0; padding: 14px 16px; border-radius: 8px; margin-bottom: 12px; }
+    .result-ok h3, .result-err h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .result-ok h3 { color: var(--green); }
+    .result-err h3 { color: var(--red); }
+    .kv { display: flex; gap: 8px; font-size: 13px; margin-top: 4px; }
+    .kv strong { color: var(--muted); min-width: 130px; }
+    .val-badge { display: inline-block; background: #fef3c7; color: #92400e; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+    .ok-badge  { display: inline-block; background: #dcfce7; color: #166534; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+    pre { background: #f1f0ed; border-radius: 7px; padding: 10px 12px; font-size: 11px; overflow-x: auto; margin-top: 10px; }
+
+    /* Province table */
+    details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--navy); padding: 8px 0; user-select: none; }
+    .prov-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 10px; }
+    .prov-table th { background: var(--navy); color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .prov-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+    .prov-table tr:hover td { background: #faf9f7; }
+    .grp-tag { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; }
+    .g-Varese { background: #dbeafe; color: #1e40af; }
+    .g-Alessandria { background: #f0fdf4; color: #166534; }
+    .g-Genova { background: #fce7f3; color: #9d174d; }
+    .g-PesaroUrbino { background: #ede9fe; color: #5b21b6; }
+    .g-AscoliPiceno { background: #fff7ed; color: #9a3412; }
+    .g-Napoli { background: #fef9c3; color: #854d0e; }
+    .g-Catania { background: #fee2e2; color: #991b1b; }
+    .g-Ragusa { background: #fdf2f8; color: #86198f; }
+    .g-Genova2 { background: #ecfdf5; color: #065f46; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <svg class="arc" width="38" height="22" viewBox="0 0 48 28" fill="none">
+    <path d="M0 28 C0 12.536 10.745 0 24 0 C37.255 0 48 12.536 48 28 L36 28 C36 19.163 30.627 12 24 12 C17.373 12 12 19.163 12 28 Z" fill="#E8921E"/>
+  </svg>
+  <div>
+    <h1>Form pubblico — Test di integrazione <span class="badge-dev">DEV</span></h1>
+    <p>Simula l'invio del form di adesione da oltremani.it verso l'API del gestionale</p>
+  </div>
+</div>
+
+<!-- Config bar -->
+<div class="config-bar" style="max-width:960px;margin:0 auto 20px;">
+  <label>⚙️ Configurazione endpoint</label>
+  <div class="cfg-row">
+    <div>
+      <label>Base URL</label>
+      <input id="cfg-url" value="http://localhost:8081" />
+    </div>
+    <div>
+      <label>X-API-Key</label>
+      <input id="cfg-key" value="test-oltremani-2026" />
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Form card -->
+  <div>
+    <div class="card">
+      <div class="card-title">📋 Entra nella nostra famiglia</div>
+
+      <form id="contact-form">
+
+        <div class="row2">
+          <div class="section">
+            <label>Nome *</label>
+            <input name="first_name" placeholder="Mario" required />
+          </div>
+          <div class="section">
+            <label>Cognome *</label>
+            <input name="last_name" placeholder="Rossi" required />
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Email *</label>
+          <input name="email" type="email" placeholder="mario.rossi@esempio.it" required />
+        </div>
+
+        <div class="section">
+          <label>Telefono</label>
+          <input name="phone" type="tel" placeholder="+39 333 1234567" />
+        </div>
+
+        <div class="row2">
+          <div class="section">
+            <label>Provincia *</label>
+            <select name="province" id="prov-select" required>
+              <option value="">— seleziona —</option>
+            </select>
+          </div>
+          <div class="section">
+            <label>Città <small style="font-weight:400;text-transform:none">(pre-compilata)</small></label>
+            <input name="city" id="city-input" placeholder="Sarà auto-compilata" />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="privacy-group">
+            <label>Privacy e consensi</label>
+            <label class="check-row">
+              <input type="checkbox" name="privacy_policy" required />
+              <span>
+                Ho letto e accetto l'<a href="#" style="color:var(--orange)">Informativa sulla Privacy</a> *
+                <small class="required-note">Campo obbligatorio</small>
+              </span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="newsletter" />
+              <span>
+                Acconsento alla ricezione della newsletter Oltremani
+                <small>Comunicazioni su eventi, attività e aggiornamenti</small>
+              </span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="marketing" />
+              <span>
+                Acconsento al trattamento per finalità di marketing
+                <small>Promozioni e offerte commerciali</small>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <button class="btn-submit" type="submit" id="submit-btn">Invia richiesta di adesione</button>
+      </form>
+    </div>
+
+    <!-- Result panel -->
+    <div id="result" class="card" style="margin-top:16px">
+      <div class="card-title">📬 Risposta API</div>
+      <div id="result-body"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar: province map -->
+  <div>
+    <div class="card">
+      <div class="card-title">🗺️ Routing provincia → gruppo</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        Seleziona una provincia nel form — il campo città si auto-compila e la provincia viene abbinata al gruppo territoriale.
+      </p>
+      <details open>
+        <summary>Tutte le province (107)</summary>
+        <div style="overflow-x:auto;margin-top:8px">
+          <table class="prov-table" id="prov-table">
+            <thead><tr><th>Prov.</th><th>Nome</th><th>Gruppo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Province data: [codice, nome, regione, gruppo_territoriale, city_in_db]
+// city_in_db = the name stored in res_city (= province name from migration)
+const PROVINCE = [
+  ["AO","Aosta","Valle d'Aosta","Varese"],
+  ["TO","Torino","Piemonte","Alessandria"],
+  ["VC","Vercelli","Piemonte","Alessandria"],
+  ["NO","Novara","Piemonte","Varese"],
+  ["CN","Cuneo","Piemonte","Alessandria"],
+  ["AT","Asti","Piemonte","Alessandria"],
+  ["AL","Alessandria","Piemonte","Alessandria"],
+  ["BI","Biella","Piemonte","Varese"],
+  ["VB","Verbano-Cusio-Ossola","Piemonte","Varese"],
+  ["GE","Genova","Liguria","Genova"],
+  ["SV","Savona","Liguria","Genova"],
+  ["IM","Imperia","Liguria","Genova"],
+  ["SP","La Spezia","Liguria","Genova"],
+  ["VA","Varese","Lombardia","Varese"],
+  ["CO","Como","Lombardia","Varese"],
+  ["LC","Lecco","Lombardia","Varese"],
+  ["SO","Sondrio","Lombardia","Varese"],
+  ["BG","Bergamo","Lombardia","Varese"],
+  ["BS","Brescia","Lombardia","Varese"],
+  ["MI","Milano","Lombardia","Varese"],
+  ["MB","Monza e della Brianza","Lombardia","Varese"],
+  ["LO","Lodi","Lombardia","Varese"],
+  ["CR","Cremona","Lombardia","Varese"],
+  ["MN","Mantova","Lombardia","Varese"],
+  ["PV","Pavia","Lombardia","Alessandria"],
+  ["BZ","Bolzano","Trentino-Alto Adige","Varese"],
+  ["TN","Trento","Trentino-Alto Adige","Varese"],
+  ["VR","Verona","Veneto","Varese"],
+  ["VI","Vicenza","Veneto","Pesaro Urbino"],
+  ["BL","Belluno","Veneto","Pesaro Urbino"],
+  ["TV","Treviso","Veneto","Pesaro Urbino"],
+  ["VE","Venezia","Veneto","Pesaro Urbino"],
+  ["PD","Padova","Veneto","Pesaro Urbino"],
+  ["RO","Rovigo","Veneto","Pesaro Urbino"],
+  ["UD","Udine","Friuli-Venezia Giulia","Pesaro Urbino"],
+  ["GO","Gorizia","Friuli-Venezia Giulia","Pesaro Urbino"],
+  ["TS","Trieste","Friuli-Venezia Giulia","Pesaro Urbino"],
+  ["PN","Pordenone","Friuli-Venezia Giulia","Pesaro Urbino"],
+  ["PC","Piacenza","Emilia-Romagna","Genova"],
+  ["PR","Parma","Emilia-Romagna","Genova"],
+  ["RE","Reggio Emilia","Emilia-Romagna","Genova"],
+  ["MO","Modena","Emilia-Romagna","Genova"],
+  ["BO","Bologna","Emilia-Romagna","Pesaro Urbino"],
+  ["FE","Ferrara","Emilia-Romagna","Pesaro Urbino"],
+  ["RA","Ravenna","Emilia-Romagna","Pesaro Urbino"],
+  ["FC","Forlì-Cesena","Emilia-Romagna","Pesaro Urbino"],
+  ["RN","Rimini","Emilia-Romagna","Pesaro Urbino"],
+  ["MS","Massa-Carrara","Toscana","Genova"],
+  ["LU","Lucca","Toscana","Genova"],
+  ["PT","Pistoia","Toscana","Pesaro Urbino"],
+  ["FI","Firenze","Toscana","Pesaro Urbino"],
+  ["PO","Prato","Toscana","Pesaro Urbino"],
+  ["LI","Livorno","Toscana","Genova"],
+  ["PI","Pisa","Toscana","Genova"],
+  ["AR","Arezzo","Toscana","Pesaro Urbino"],
+  ["SI","Siena","Toscana","Pesaro Urbino"],
+  ["GR","Grosseto","Toscana","Pesaro Urbino"],
+  ["PG","Perugia","Umbria","Pesaro Urbino"],
+  ["TR","Terni","Umbria","Ascoli Piceno"],
+  ["PU","Pesaro e Urbino","Marche","Pesaro Urbino"],
+  ["AN","Ancona","Marche","Pesaro Urbino"],
+  ["MC","Macerata","Marche","Ascoli Piceno"],
+  ["FM","Fermo","Marche","Ascoli Piceno"],
+  ["AP","Ascoli Piceno","Marche","Ascoli Piceno"],
+  ["VT","Viterbo","Lazio","Ascoli Piceno"],
+  ["RI","Rieti","Lazio","Ascoli Piceno"],
+  ["RM","Roma","Lazio","Ascoli Piceno"],
+  ["LT","Latina","Lazio","Napoli"],
+  ["FR","Frosinone","Lazio","Napoli"],
+  ["AQ","L'Aquila","Abruzzo","Ascoli Piceno"],
+  ["TE","Teramo","Abruzzo","Ascoli Piceno"],
+  ["PE","Pescara","Abruzzo","Ascoli Piceno"],
+  ["CH","Chieti","Abruzzo","Ascoli Piceno"],
+  ["IS","Isernia","Molise","Napoli"],
+  ["CB","Campobasso","Molise","Napoli"],
+  ["CE","Caserta","Campania","Napoli"],
+  ["BN","Benevento","Campania","Napoli"],
+  ["NA","Napoli","Campania","Napoli"],
+  ["AV","Avellino","Campania","Napoli"],
+  ["SA","Salerno","Campania","Napoli"],
+  ["FG","Foggia","Puglia","Napoli"],
+  ["BT","Barletta-Andria-Trani","Puglia","Napoli"],
+  ["BA","Bari","Puglia","Napoli"],
+  ["TA","Taranto","Puglia","Napoli"],
+  ["BR","Brindisi","Puglia","Napoli"],
+  ["LE","Lecce","Puglia","Napoli"],
+  ["PZ","Potenza","Basilicata","Napoli"],
+  ["MT","Matera","Basilicata","Napoli"],
+  ["CS","Cosenza","Calabria","Catania"],
+  ["CZ","Catanzaro","Calabria","Catania"],
+  ["KR","Crotone","Calabria","Catania"],
+  ["VV","Vibo Valentia","Calabria","Catania"],
+  ["RC","Reggio Calabria","Calabria","Catania"],
+  ["PA","Palermo","Sicilia","Ragusa"],
+  ["TP","Trapani","Sicilia","Ragusa"],
+  ["AG","Agrigento","Sicilia","Ragusa"],
+  ["CL","Caltanissetta","Sicilia","Ragusa"],
+  ["EN","Enna","Sicilia","Ragusa"],
+  ["CT","Catania","Sicilia","Catania"],
+  ["SR","Siracusa","Sicilia","Catania"],
+  ["ME","Messina","Sicilia","Catania"],
+  ["RG","Ragusa","Sicilia","Ragusa"],
+  ["SS","Sassari","Sardegna","Genova"],
+  ["NU","Nuoro","Sardegna","Genova"],
+  ["OR","Oristano","Sardegna","Genova"],
+  ["CA","Cagliari","Sardegna","Genova"],
+  ["SU","Sud Sardegna","Sardegna","Genova"],
+];
+
+// Group → CSS class mapping
+const GRP_CLASS = {
+  "Varese": "g-Varese",
+  "Alessandria": "g-Alessandria",
+  "Genova": "g-Genova",
+  "Pesaro Urbino": "g-PesaroUrbino",
+  "Ascoli Piceno": "g-AscoliPiceno",
+  "Napoli": "g-Napoli",
+  "Catania": "g-Catania",
+  "Ragusa": "g-Ragusa",
+};
+
+// Populate province select
+const sel = document.getElementById("prov-select");
+PROVINCE.forEach(([code, nome]) => {
+  const opt = document.createElement("option");
+  opt.value = code;
+  opt.textContent = `${code} — ${nome}`;
+  sel.appendChild(opt);
+});
+
+// Auto-fill city when province changes
+sel.addEventListener("change", () => {
+  const row = PROVINCE.find(p => p[0] === sel.value);
+  document.getElementById("city-input").value = row ? row[1] : "";
+  // Highlight matching row in table
+  document.querySelectorAll(".prov-table tbody tr").forEach(tr => {
+    tr.style.background = tr.dataset.code === sel.value ? "#fff8f0" : "";
+    tr.style.fontWeight = tr.dataset.code === sel.value ? "700" : "";
+  });
+  const target = document.querySelector(`.prov-table tbody tr[data-code="${sel.value}"]`);
+  if (target) target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+});
+
+// Populate province table
+const tbody = document.querySelector(".prov-table tbody");
+PROVINCE.forEach(([code, nome, regione, gruppo]) => {
+  const tr = document.createElement("tr");
+  tr.dataset.code = code;
+  tr.innerHTML = `<td><strong>${code}</strong></td><td>${nome}</td><td><span class="grp-tag ${GRP_CLASS[gruppo] || ''}">${gruppo}</span></td>`;
+  tbody.appendChild(tr);
+});
+
+// Form submit
+document.getElementById("contact-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Invio in corso…";
+
+  const baseUrl = document.getElementById("cfg-url").value.replace(/\/$/, "");
+  const apiKey  = document.getElementById("cfg-key").value;
+
+  const body = {
+    first_name: f.first_name.value.trim() || null,
+    last_name:  f.last_name.value.trim()  || null,
+    email:      f.email.value.trim(),
+    phone:      f.phone.value.trim()      || null,
+    city:       f.city.value.trim()       || null,
+    province:   f.province.value          || null,
+    privacy_consents: [
+      { consent_type: "privacy_policy", accepted: f.privacy_policy.checked, version: "1.0" },
+      { consent_type: "newsletter",     accepted: f.newsletter.checked,     version: "1.0" },
+      { consent_type: "marketing",      accepted: f.marketing.checked,      version: "1.0" },
+    ],
+  };
+
+  let data, ok;
+  try {
+    const res = await fetch(`${baseUrl}/api/public/contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+      body: JSON.stringify(body),
+    });
+    data = await res.json();
+    ok = res.ok && data.ok;
+  } catch (err) {
+    data = { error: err.message };
+    ok = false;
+  }
+
+  // Show result
+  const resultDiv = document.getElementById("result");
+  const bodyDiv   = document.getElementById("result-body");
+  resultDiv.style.display = "block";
+
+  const provRow = PROVINCE.find(p => p[0] === body.province);
+  const expectedGroup = provRow ? provRow[3] : "—";
+
+  if (ok) {
+    bodyDiv.innerHTML = `
+      <div class="result-ok">
+        <h3>✅ Contatto creato / aggiornato</h3>
+        <div class="kv"><strong>partner_id</strong><span style="font-family:monospace;font-size:12px">${data.partner_id}</span></div>
+        <div class="kv"><strong>Validazione manuale</strong><span>${data.validation ? '<span class="val-badge">⚠️ Sì — città non abbinata</span>' : '<span class="ok-badge">✅ No — città abbinata</span>'}</span></div>
+        <div class="kv"><strong>Gruppo atteso</strong><span><span class="grp-tag ${GRP_CLASS[expectedGroup] || ''}">${expectedGroup}</span></span></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Risposta JSON completa:</p>
+      <pre>${JSON.stringify(data, null, 2)}</pre>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">
+        👉 Verifica il contatto nel <a href="/contacts" target="_blank" style="color:var(--orange)">gestionale → Contatti</a>
+        ${data.validation ? '· Il contatto ha il tag <strong>Validation</strong> — assegna il gruppo manualmente' : ''}
+      </p>
+    `;
+  } else {
+    bodyDiv.innerHTML = `
+      <div class="result-err">
+        <h3>❌ Errore</h3>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+      </div>
+      <p style="font-size:12px;color:var(--muted)">
+        Controlla che il dev server sia attivo e che <strong>SUPABASE_SERVICE_ROLE_KEY</strong> sia nel .env
+      </p>
+    `;
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Invia richiesta di adesione";
+  resultDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+</script>
+</body>
+</html>

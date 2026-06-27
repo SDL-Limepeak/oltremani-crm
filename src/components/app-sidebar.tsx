@@ -40,6 +40,25 @@ const adminItems = [
   { title: "Audit Log", url: "/audit", icon: ScrollText, minRole: ["admin"] },
 ];
 
+function OltremaniArc({ size = 28 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={Math.round(size * 0.58)}
+      viewBox="0 0 48 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M0 28 C0 12.536 10.745 0 24 0 C37.255 0 48 12.536 48 28 L36 28 C36 19.163 30.627 12 24 12 C17.373 12 12 19.163 12 28 Z"
+        fill="#E8921E"
+      />
+    </svg>
+  );
+}
+
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -57,14 +76,17 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="px-3 py-2">
+        <div className="px-3 py-3">
           {!collapsed ? (
-            <div>
-              <div className="font-serif text-2xl font-semibold text-sidebar-foreground">Oltremani</div>
-              <div className="text-xs text-muted-foreground">Gestionale soci</div>
-            </div>
+            <img
+              src="/logo-white.png"
+              alt="Oltremani"
+              className="h-7 w-auto object-contain object-left"
+            />
           ) : (
-            <div className="font-serif text-2xl font-semibold text-sidebar-primary text-center">O</div>
+            <div className="flex justify-center py-1">
+              <OltremaniArc size={28} />
+            </div>
           )}
         </div>
       </SidebarHeader>
@@ -126,7 +148,7 @@ export function AppSidebar() {
               variant="ghost"
               size="sm"
               onClick={handleLogout}
-              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+              className="w-full justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
             >
               <LogOut className="h-4 w-4" />
               {!collapsed && <span>Esci</span>}
