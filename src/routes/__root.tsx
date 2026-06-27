@@ -83,6 +83,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Oltremani · Gestionale" },
       { property: "og:description", content: "Backend gestionale Oltremani per soci e contatti" },
       { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "Oltremani · Gestionale" },
+      { name: "twitter:description", content: "Backend gestionale Oltremani per soci e contatti" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e3e78a02-6535-44eb-9d54-1e2b74d4c903/id-preview-7a39b853--5ee874eb-458d-4ddb-99dd-8259082802de.lovable.app-1782585416397.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e3e78a02-6535-44eb-9d54-1e2b74d4c903/id-preview-7a39b853--5ee874eb-458d-4ddb-99dd-8259082802de.lovable.app-1782585416397.png" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       {
