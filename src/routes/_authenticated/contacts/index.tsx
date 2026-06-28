@@ -51,9 +51,12 @@ function ContactsPage() {
     queryFn: () => listPartners({ data: filters as any }),
   });
 
-  const rows = (data?.rows ?? []).slice().sort(
-    (a: any, b: any) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
-  );
+  const rows = (data?.rows ?? []).slice().sort((a: any, b: any) => {
+    const aNoGroup = !a.res_partner_category_rel?.length;
+    const bNoGroup = !b.res_partner_category_rel?.length;
+    if (aNoGroup !== bNoGroup) return aNoGroup ? -1 : 1;
+    return (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+  });
   const csv = useMemo(() => {
     const head = ["nome", "cognome", "email", "telefono", "città", "provincia", "stato"];
     const body = rows.map((r: any) => [r.first_name, r.last_name, r.email, r.phone ?? r.mobile, r.res_city?.name ?? r.raw_city, r.res_city?.province_code ?? r.raw_province, r.status].map(v => `"${(v ?? "").toString().replace(/"/g, '""')}"`).join(","));

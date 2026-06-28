@@ -15,10 +15,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedSubscriptionsRouteImport } from './routes/_authenticated/subscriptions'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedGuidaRouteImport } from './routes/_authenticated/guida'
 import { Route as AuthenticatedGroupsRouteImport } from './routes/_authenticated/groups'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCitiesRouteImport } from './routes/_authenticated/cities'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedContactsIndexRouteImport } from './routes/_authenticated/contacts/index'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as AuthenticatedContactsNewRouteImport } from './routes/_authenticated/contacts/new'
@@ -54,6 +56,11 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGuidaRoute = AuthenticatedGuidaRouteImport.update({
+  id: '/guida',
+  path: '/guida',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedGroupsRoute = AuthenticatedGroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
@@ -72,6 +79,11 @@ const AuthenticatedCitiesRoute = AuthenticatedCitiesRouteImport.update({
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedContactsIndexRoute =
@@ -100,10 +112,12 @@ const AuthenticatedContactsIdRoute = AuthenticatedContactsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app': typeof AuthenticatedAppRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/cities': typeof AuthenticatedCitiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/groups': typeof AuthenticatedGroupsRoute
+  '/guida': typeof AuthenticatedGuidaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -115,10 +129,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app': typeof AuthenticatedAppRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/cities': typeof AuthenticatedCitiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/groups': typeof AuthenticatedGroupsRoute
+  '/guida': typeof AuthenticatedGuidaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -132,10 +148,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/cities': typeof AuthenticatedCitiesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/groups': typeof AuthenticatedGroupsRoute
+  '/_authenticated/guida': typeof AuthenticatedGuidaRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/subscriptions': typeof AuthenticatedSubscriptionsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
@@ -149,10 +167,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/app'
     | '/audit'
     | '/cities'
     | '/dashboard'
     | '/groups'
+    | '/guida'
     | '/profile'
     | '/subscriptions'
     | '/users'
@@ -164,10 +184,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/app'
     | '/audit'
     | '/cities'
     | '/dashboard'
     | '/groups'
+    | '/guida'
     | '/profile'
     | '/subscriptions'
     | '/users'
@@ -180,10 +202,12 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/app'
     | '/_authenticated/audit'
     | '/_authenticated/cities'
     | '/_authenticated/dashboard'
     | '/_authenticated/groups'
+    | '/_authenticated/guida'
     | '/_authenticated/profile'
     | '/_authenticated/subscriptions'
     | '/_authenticated/users'
@@ -244,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/guida': {
+      id: '/_authenticated/guida'
+      path: '/guida'
+      fullPath: '/guida'
+      preLoaderRoute: typeof AuthenticatedGuidaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/groups': {
       id: '/_authenticated/groups'
       path: '/groups'
@@ -270,6 +301,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/contacts/': {
@@ -304,10 +342,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedCitiesRoute: typeof AuthenticatedCitiesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedGroupsRoute: typeof AuthenticatedGroupsRoute
+  AuthenticatedGuidaRoute: typeof AuthenticatedGuidaRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSubscriptionsRoute: typeof AuthenticatedSubscriptionsRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
@@ -317,10 +357,12 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedCitiesRoute: AuthenticatedCitiesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedGroupsRoute: AuthenticatedGroupsRoute,
+  AuthenticatedGuidaRoute: AuthenticatedGuidaRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSubscriptionsRoute: AuthenticatedSubscriptionsRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,

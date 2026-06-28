@@ -41,7 +41,13 @@ export function UserDialog({ open, onOpenChange, initial, categories, onSaved }:
         <DialogHeader><DialogTitle>{initial?.id ? "Modifica utente" : "Nuovo utente"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-2"><Label>Nome</Label><Input value={f.name} onChange={e => set("name", e.target.value)} /></div>
-          <div className="space-y-2"><Label>Email</Label><Input type="email" value={f.email} onChange={e => set("email", e.target.value)} disabled={!!initial?.id} /></div>
+          <div className="space-y-2">
+            <Label>Email</Label>
+            <Input type="email" value={f.email} onChange={e => set("email", e.target.value)} disabled={!!initial?.id} placeholder="nome@esempio.it" />
+            {!initial?.id && f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email) && (
+              <p className="text-xs text-destructive">Inserisci un indirizzo email valido</p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label>Ruolo</Label>
             <Select value={f.role} onValueChange={v => set("role", v as any)}>
@@ -86,7 +92,7 @@ export function UserDialog({ open, onOpenChange, initial, categories, onSaved }:
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={() => onSaved(f)} disabled={!f.name || !f.email || (!initial?.id && (!f.password || f.password.length < 8))}>Salva</Button>
+          <Button onClick={() => onSaved(f)} disabled={!f.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email) || (!initial?.id && (!f.password || f.password.length < 8))}>Salva</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

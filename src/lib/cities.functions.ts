@@ -22,7 +22,51 @@ export const setCityCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ city_id: z.string().uuid(), category_id: z.string().uuid().nullable() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("res_city").update({ category_id: data.category_id }).eq("id", data.city_id);
+    const { supabase, userId } = context;
+    const { data: caller } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+    if (!caller || !["admin", "superuser"].includes(caller.role)) throw new Error("Non autorizzato");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("res_city").update({ category_id: data.category_id }).eq("id", data.city_id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const upsertCity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid().optional(),
+      name: z.string().min(1).max(150),
+      province_code: z.string().max(5).nullable().optional(),
+      province: z.string().nullable().optional(),
+      region: z.string().nullable().optional(),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: caller } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+    if (!caller || !["admin", "superuser"].includes(caller.role)) throw new Error("Non autorizzato");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { id, ...rest } = data;
+    if (id) {
+      const { error } = await supabaseAdmin.from("res_city").update(rest).eq("id", id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabaseAdmin.from("res_city").insert(rest);
+      if (error) throw error;
+    }
+    return { ok: true };
+  });
+
+export const deleteCityById = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: caller } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+    if (!caller || !["admin", "superuser"].includes(caller.role)) throw new Error("Non autorizzato");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("res_city").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });

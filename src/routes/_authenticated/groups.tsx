@@ -150,6 +150,7 @@ function GroupsPage() {
       <CategoryDialog
         open={open}
         onOpenChange={setOpen}
+        categories={data ?? []}
         initial={editing}
         onSaved={async (vals) => {
           try {

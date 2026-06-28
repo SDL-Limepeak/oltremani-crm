@@ -27,14 +27,9 @@ const GROUP_PALETTE = [
   "#a8c0ef", "#E8921E", "#f5aa55", "#fac88c", "#c8d9f7",
 ];
 
-function StatCard({ icon: Icon, label, value, tone = "default" }: any) {
-  const tones: Record<string, string> = {
-    default: "bg-card",
-    warm: "bg-[hsl(var(--accent))]/30",
-    cool: "bg-[hsl(var(--secondary))]/40",
-  };
+function StatCard({ icon: Icon, label, value }: any) {
   return (
-    <Card className={`p-6 rounded-2xl border-0 shadow-sm ${tones[tone]}`}>
+    <Card className="p-6 rounded-2xl border-0 shadow-sm bg-card">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{label}</p>
@@ -135,9 +130,9 @@ function DashboardPage() {
     <AppShell title="Dashboard" subtitle="Panoramica del CRM e tesseramenti">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Users} label="Contatti totali" value={isLoading ? "—" : data?.total ?? 0} />
-        <StatCard icon={Inbox} label="Nuovi contatti" value={isLoading ? "—" : data?.newCount ?? 0} tone="warm" />
-        <StatCard icon={UserCheck} label="Contatti attivi" value={isLoading ? "—" : data?.activeCount ?? 0} tone="cool" />
-        <StatCard icon={BadgeCheck} label={`Tessere attive ${data?.year ?? ""}`} value={isLoading ? "—" : data?.activeSubs ?? 0} tone="cool" />
+        <StatCard icon={Inbox} label="Nuovi contatti" value={isLoading ? "—" : data?.newCount ?? 0} />
+        <StatCard icon={UserCheck} label="Contatti attivi" value={isLoading ? "—" : data?.activeCount ?? 0} />
+        <StatCard icon={BadgeCheck} label={`Tessere attive ${data?.year ?? ""}`} value={isLoading ? "—" : data?.activeSubs ?? 0} />
       </div>
 
       {/* Pie charts */}

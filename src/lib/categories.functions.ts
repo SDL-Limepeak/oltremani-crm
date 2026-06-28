@@ -15,7 +15,9 @@ export const listCategories = createServerFn({ method: "GET" })
       const rels: any[] = cat.res_partner_category_rel ?? [];
       let activist = 0, citizen = 0;
       for (const r of rels) {
-        const t = r.res_partner?.partner_type;
+        // PostgREST can return either a single object or an array depending on FK cardinality
+        const partner = Array.isArray(r.res_partner) ? r.res_partner[0] : r.res_partner;
+        const t = partner?.partner_type;
         if (t === "activist") activist++;
         else if (t === "citizen") citizen++;
       }

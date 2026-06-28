@@ -38,7 +38,6 @@ function ProfilePage() {
                 <p className="text-sm font-medium">{profile?.name || "—"}</p>
               </div>
             </div>
-
             <div className="flex items-center gap-3">
               <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div>
@@ -46,7 +45,6 @@ function ProfilePage() {
                 <p className="text-sm font-medium">{user?.email || "—"}</p>
               </div>
             </div>
-
             <div className="flex items-center gap-3">
               <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div>
@@ -55,7 +53,6 @@ function ProfilePage() {
               </div>
             </div>
           </div>
-
           <div className="pt-4 border-t border-border/40 space-y-2">
             <p className="text-xs text-muted-foreground">
               Per modificare nome, email o password contatta un amministratore o usa{" "}

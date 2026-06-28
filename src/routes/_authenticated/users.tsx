@@ -63,7 +63,7 @@ function UsersPage() {
                   </td>
                   <td className="p-4"><Badge variant={u.status === "active" ? "default" : "secondary"} className="rounded-full">{u.status}</Badge></td>
                   <td className="p-4 text-right">
-                    {canManage && (
+                    {canManage && u.id !== profile?.id && (
                       <>
                         <Button size="sm" variant="ghost" onClick={() => { setEditing(u); setOpen(true); }}>Modifica</Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={async () => {

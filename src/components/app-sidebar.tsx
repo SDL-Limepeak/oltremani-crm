@@ -9,6 +9,8 @@ import {
   ScrollText,
   User as UserIcon,
   LogOut,
+  Info,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -140,6 +142,22 @@ export function AppSidebar() {
               <Link to="/profile" className="flex items-center gap-2">
                 <UserIcon className="h-4 w-4" />
                 {!collapsed && <span>Profilo</span>}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/app")}>
+              <Link to="/app" className="flex items-center gap-2">
+                <Info className="h-4 w-4" />
+                {!collapsed && <span>App</span>}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/guida")}>
+              <Link to="/guida" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                {!collapsed && <span>Guida</span>}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
