@@ -10,6 +10,10 @@ import { Plus } from "lucide-react";
 import { listUsers, upsertUser, deleteUser } from "@/lib/users.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { UserDialog } from "@/components/user-dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuthUser } from "@/hooks/use-auth-user";
 
 export const Route = createFileRoute("/_authenticated/users")({
@@ -31,6 +35,23 @@ function UsersPage() {
 
   const [editing, setEditing] = useState<any | null>(null);
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteUser({ data: { id: pendingDelete.id } });
+      toast.success("Utente eliminato");
+      qc.invalidateQueries({ queryKey: ["users"] });
+      setPendingDelete(null);
+    } catch (e: any) {
+      toast.error(e.message ?? "Errore");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   // Hide admin rows from UI (per spec)
   const rows = (users ?? []).filter((u: any) => u.role !== "admin");
@@ -66,14 +87,7 @@ function UsersPage() {
                     {canManage && u.id !== profile?.id && (
                       <>
                         <Button size="sm" variant="ghost" onClick={() => { setEditing(u); setOpen(true); }}>Modifica</Button>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={async () => {
-                          if (!confirm(`Eliminare "${u.name}"?`)) return;
-                          try {
-                            await deleteUser({ data: { id: u.id } });
-                            toast.success("Utente eliminato");
-                            qc.invalidateQueries({ queryKey: ["users"] });
-                          } catch (e: any) { toast.error(e.message ?? "Errore"); }
-                        }}>Elimina</Button>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setPendingDelete(u)}>Elimina</Button>
                       </>
                     )}
                   </td>
@@ -100,6 +114,28 @@ function UsersPage() {
           }
         }}
       />
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o) setPendingDelete(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare l'utente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per rimuovere <strong>{pendingDelete?.name}</strong> ({pendingDelete?.email}).
+              L'utente non potrà più accedere e non comparirà più in questa lista. L'operazione non è annullabile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Eliminazione…" : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

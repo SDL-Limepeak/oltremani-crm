@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guida CRM Oltremani — Istruzioni d'uso</title>
+<style>
+  :root {
+    --orange: #E8921E;
+    --blue: #1E3271;
+    --ink: #1f2430;
+    --muted: #5b6472;
+    --line: #e7e9ee;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --green: #047857;
+    --red: #be123c;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* Header */
+  header.hero {
+    background: linear-gradient(135deg, #fdfaf4 0%, #f3f6fc 100%);
+    border-bottom: 1px solid var(--line);
+    padding: 44px 20px 40px;
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .arc { flex-shrink: 0; }
+  .brand h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 800; }
+  .brand .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .hero p.lead { margin: 20px 0 0; color: var(--muted); max-width: 640px; }
+  .meta-badges { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--line); color: var(--muted);
+  }
+
+  /* Role tags */
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rt {
+    font-size: 11px; font-weight: 700; letter-spacing: .02em;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .rt-v { background: #e7f5ec; color: #1b7a43; border-color: #c9e9d5; }
+  .rt-c { background: #e5ebf7; color: var(--blue); border-color: #d2ddf3; }
+  .rt-s { background: #fdeede; color: #9a5b06; border-color: #f6dcb8; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 18px; margin: 20px 0 4px; font-size: 13.5px; color: var(--muted);
+  }
+  .legend .item { display: flex; align-items: center; gap: 8px; }
+
+  /* TOC */
+  nav.toc {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px 22px; margin: 24px 0; box-shadow: 0 1px 2px rgba(20,25,40,.04);
+  }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { margin: 4px 0; break-inside: avoid; }
+  nav.toc a { color: var(--ink); text-decoration: none; }
+  nav.toc a:hover { color: var(--orange); text-decoration: underline; }
+
+  /* Sections */
+  section { margin-top: 40px; }
+  .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .section-head .num {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px;
+    background: var(--orange); color: #fff; font-weight: 800; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .section-head.blue .num { background: var(--blue); }
+  h2.title { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .section-head .tags { margin-left: auto; }
+  h3 { font-size: 17px; margin: 26px 0 8px; color: var(--blue); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px 24px; margin-top: 14px; box-shadow: 0 1px 2px rgba(20,25,40,.04);
+  }
+
+  ol.steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+  ol.steps > li { position: relative; padding: 4px 0 4px 40px; margin: 10px 0; }
+  ol.steps > li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 2px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--orange); color: var(--orange);
+    font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;
+  }
+  ul.plain { margin: 8px 0; padding-left: 20px; }
+  ul.plain li { margin: 5px 0; }
+
+  .tip, .warn, .note {
+    border-radius: 12px; padding: 12px 16px; margin: 14px 0; font-size: 14.5px;
+    border: 1px solid; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .tip { background: #f0f9f3; border-color: #cdebd7; color: #14532d; }
+  .warn { background: #fdf1f1; border-color: #f6d4d4; color: #7f1d1d; }
+  .note { background: #f4f7fd; border-color: #d8e2f5; color: #1e3a5f; }
+  .ico { flex-shrink: 0; font-size: 16px; line-height: 1.5; }
+
+  kbd {
+    background: #eef0f4; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 6px; padding: 1px 7px; font-size: 13px; font-weight: 600;
+    font-family: inherit; color: var(--ink); white-space: nowrap;
+  }
+  .path { color: var(--muted); font-size: 13.5px; }
+  .path b { color: var(--ink); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f3f4f7; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  th.center, td.center { text-align: center; }
+  td .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .p-green { background: #d1fae5; color: #065f46; }
+  .p-blue  { background: #dbeafe; color: #1e40af; }
+  .p-gray  { background: #eceef2; color: #475569; }
+  .p-red   { background: #fee2e2; color: #991b1b; }
+  .p-amber { background: #fef3c7; color: #92400e; }
+  .check { color: var(--green); font-weight: 700; }
+  .cross { color: #b8bec9; }
+
+  .divider { height: 1px; background: var(--line); border: 0; margin: 44px 0; }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 13px; margin-top: 60px;
+    padding-top: 24px; border-top: 1px solid var(--line);
+  }
+  footer .lp { color: var(--orange); font-weight: 700; }
+  a { color: var(--orange); }
+
+  @media (max-width: 640px) {
+    nav.toc ol { columns: 1; }
+    .brand h1 { font-size: 22px; }
+    .section-head .tags { margin-left: 0; width: 100%; }
+  }
+  @media print {
+    body { background: #fff; font-size: 12.5px; }
+    header.hero { background: #fff; }
+    .card, nav.toc { box-shadow: none; }
+    section { page-break-inside: avoid; }
+    nav.toc { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand">
+      <svg class="arc" width="46" height="27" viewBox="0 0 48 28" fill="none" aria-hidden="true">
+        <path d="M0 28 C0 12.536 10.745 0 24 0 C37.255 0 48 12.536 48 28 L36 28 C36 19.163 30.627 12 24 12 C17.373 12 12 19.163 12 28 Z" fill="#E8921E"/>
+      </svg>
+      <div>
+        <h1>CRM Oltremani</h1>
+        <div class="sub">Guida d'uso — istruzioni passo passo</div>
+      </div>
+    </div>
+    <p class="lead">
+      Questo manuale spiega, in modo semplice e passo dopo passo, come usare il gestionale:
+      dall'accesso alla gestione quotidiana di contatti, tessere, gruppi e utenti.
+      Accanto a ogni funzione trovi i <b>tag dei ruoli</b> che possono usarla.
+    </p>
+    <div class="meta-badges">
+      <span class="badge">📘 Versione app 1.0.0</span>
+      <span class="badge">🇮🇹 In italiano</span>
+      <span class="badge">🖨️ Stampabile (Ctrl/Cmd + P)</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="legend">
+    <span style="font-weight:600;color:var(--ink)">Come leggere i tag:</span>
+    <span class="item"><span class="rt rt-v">Volontario</span> lavoro quotidiano sui contatti</span>
+    <span class="item"><span class="rt rt-c">Coordinatore</span> + gestione utenti</span>
+    <span class="item"><span class="rt rt-s">Superuser</span> + gruppi e città</span>
+  </div>
+
+  <nav class="toc">
+    <h2>Indice</h2>
+    <ol>
+      <li><a href="#accesso">Accesso e login</a></li>
+      <li><a href="#orientarsi">Orientarsi nell'app</a></li>
+      <li><a href="#ruoli">Ruoli e permessi</a></li>
+      <li><a href="#dashboard">Dashboard</a></li>
+      <li><a href="#contatti">Gestire i contatti</a></li>
+      <li><a href="#tessere">Emettere e revocare tessere</a></li>
+      <li><a href="#consensi">Registrare i consensi privacy</a></li>
+      <li><a href="#utenti">Gestire gli utenti</a></li>
+      <li><a href="#gruppi">Gruppi territoriali</a></li>
+      <li><a href="#citta">Città</a></li>
+      <li><a href="#glossario">Glossario rapido</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1. ACCESSO -->
+  <section id="accesso">
+    <div class="section-head">
+      <div class="num">1</div>
+      <h2 class="title">Accesso e login</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Entrare nell'applicazione</h3>
+      <ol class="steps">
+        <li>Apri il link dell'applicazione nel browser (Chrome, Edge, Safari…).</li>
+        <li>Inserisci la tua <b>email</b> e la tua <b>password</b>.</li>
+        <li>Clicca <kbd>Accedi</kbd>: verrai portato automaticamente alla <b>Dashboard</b>.</li>
+      </ol>
+      <div class="note"><span class="ico">ℹ️</span><div>Le credenziali vengono create dal Coordinatore o dal Superuser. Se non le hai ancora ricevute, richiedile a chi gestisce il sistema.</div></div>
+
+      <h3>Ho dimenticato la password</h3>
+      <ol class="steps">
+        <li>Nella schermata di login clicca <kbd>Ho dimenticato la password</kbd>.</li>
+        <li>Inserisci la tua email e clicca <kbd>Invia link di reset</kbd>.</li>
+        <li>Controlla la posta (anche lo spam) e apri il link ricevuto per impostare una nuova password.</li>
+      </ol>
+
+      <h3>Uscire (logout)</h3>
+      <ul class="plain">
+        <li>Clicca <kbd>Esci</kbd> in fondo al menu laterale, oppure vai su <b>Profilo</b> → <kbd>Esci</kbd>.</li>
+      </ul>
+      <div class="tip"><span class="ico">✅</span><div>Per cambiare <b>nome, email o password</b> del tuo account contatta chi gestisce il sistema, oppure usa "Ho dimenticato la password".</div></div>
+    </div>
+  </section>
+
+  <!-- 2. ORIENTARSI -->
+  <section id="orientarsi">
+    <div class="section-head">
+      <div class="num">2</div>
+      <h2 class="title">Orientarsi nell'app</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p>A sinistra c'è il <b>menu laterale</b>, sempre disponibile:</p>
+      <ul class="plain">
+        <li><b>Operatività</b> — Dashboard, Contatti, Tesseramenti, Gruppi, Città.</li>
+        <li><b>Amministrazione</b> — Utenti (visibile a Coordinatore e Superuser).</li>
+      </ul>
+      <p>In basso trovi <b>Profilo</b>, <b>App</b> (info e novità), <b>Guida</b> (questa guida, disponibile anche nell'app) e <b>Esci</b>.</p>
+      <div class="note"><span class="ico">ℹ️</span><div>Le voci di menu che vedi dipendono dal tuo ruolo: se una voce non compare, il tuo ruolo non vi ha accesso.</div></div>
+    </div>
+  </section>
+
+  <!-- 3. RUOLI -->
+  <section id="ruoli">
+    <div class="section-head blue">
+      <div class="num">3</div>
+      <h2 class="title">Ruoli e permessi</h2>
+    </div>
+    <div class="card">
+      <p>Esistono tre ruoli. Ognuno può fare tutto ciò che fa il ruolo più semplice, più le proprie funzioni:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Funzione</th>
+            <th class="center">Volontario</th>
+            <th class="center">Coordinatore</th>
+            <th class="center">Superuser</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Vedere e inserire contatti</td><td class="center check">✔</td><td class="center check">✔</td><td class="center check">✔</td></tr>
+          <tr><td>Emettere / revocare tessere</td><td class="center check">✔</td><td class="center check">✔</td><td class="center check">✔</td></tr>
+          <tr><td>Registrare consensi privacy</td><td class="center check">✔</td><td class="center check">✔</td><td class="center check">✔</td></tr>
+          <tr><td>Consultare gruppi e città</td><td class="center check">✔</td><td class="center check">✔</td><td class="center check">✔</td></tr>
+          <tr><td>Gestire gli utenti</td><td class="center cross">—</td><td class="center check">✔</td><td class="center check">✔</td></tr>
+          <tr><td>Creare / modificare gruppi</td><td class="center cross">—</td><td class="center cross">—</td><td class="center check">✔</td></tr>
+          <tr><td>Modificare le città</td><td class="center cross">—</td><td class="center cross">—</td><td class="center check">✔</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- 4. DASHBOARD -->
+  <section id="dashboard">
+    <div class="section-head">
+      <div class="num">4</div>
+      <h2 class="title">Dashboard</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Menu: <b>Dashboard</b> — è la prima pagina dopo il login.</p>
+      <ul class="plain">
+        <li><b>Contatori in alto</b>: contatti totali, nuovi, attivi e tessere attive dell'anno corrente.</li>
+        <li><b>Grafico "Attivisti e Cittadini"</b>: distribuzione per tipo. Passa il mouse su una fetta per il dettaglio per stato.</li>
+        <li><b>Grafico "Cittadini per gruppo"</b>: quanti cittadini appartengono a ciascun gruppo territoriale.</li>
+        <li><b>Form ricevuti di recente</b>: gli ultimi contatti arrivati dal form pubblico del sito.</li>
+        <li><b>Attività recente</b>: le ultime modifiche registrate nel sistema.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5. CONTATTI -->
+  <section id="contatti">
+    <div class="section-head">
+      <div class="num">5</div>
+      <h2 class="title">Gestire i contatti</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Menu: <b>Contatti</b></p>
+
+      <h3 style="margin-top:8px">Cercare e filtrare</h3>
+      <ol class="steps">
+        <li>Usa la <b>barra di ricerca</b> in alto per cercare per nome o email.</li>
+        <li>Affina con i filtri: <b>Stato</b>, <b>Tipo</b> (Attivista / Cittadino / Non specificato), <b>Gruppo</b> e <b>Tessera anno corrente</b>.</li>
+      </ol>
+      <div class="note"><span class="ico">ℹ️</span><div>La lista mette per primi i contatti <b>senza gruppo</b> (evidenziati in arancione ⚠️), poi per stato: Nuovi → Attivi → Rifiutati → Inattivi.</div></div>
+
+      <h3>Creare un nuovo contatto</h3>
+      <ol class="steps">
+        <li>Clicca <kbd>+ Nuovo contatto</kbd> in alto a destra.</li>
+        <li>Scegli <b>Tipo</b> (Attivista / Cittadino / Non specificato) e <b>Stato</b> (di norma "Nuovo").</li>
+        <li>Compila <b>Nome</b>, <b>Cognome</b>, <b>Email</b> e, se disponibile, la <b>Città</b> (scrivi almeno 2 lettere e selezionala dall'elenco).</li>
+        <li>Inserisci il <b>Telefono</b> con il prefisso internazionale (es. <b>+39</b> per l'Italia). Usa "Telefono alternativo" per un secondo numero.</li>
+        <li>Assegna uno o più <b>Gruppi</b> cliccando i badge.</li>
+        <li>Clicca <kbd>Salva</kbd>.</li>
+      </ol>
+      <div class="warn"><span class="ico">⚠️</span><div>Se salvi un contatto <b>senza gruppo</b>, l'app chiede conferma. Resterà segnalato in arancione finché non gliene assegni uno.</div></div>
+
+      <h3>Aprire e modificare una scheda contatto</h3>
+      <p>Clicca sul <b>nome</b> nella lista. La scheda è divisa in sezioni apribili/chiudibili:</p>
+      <ul class="plain">
+        <li><b>Gruppi</b> — assegna o togli i gruppi cliccando i badge, poi <kbd>Salva</kbd>.</li>
+        <li><b>Anagrafica</b> — tipo, stato, nome, cognome, email, città, telefoni, note. Premi <kbd>Salva</kbd> dopo le modifiche.</li>
+        <li><b>Tessere</b> — storico ed emissione (vedi §6).</li>
+        <li><b>Privacy &amp; Consensi</b> — storico e registrazione consensi (vedi §7).</li>
+      </ul>
+      <div class="tip"><span class="ico">✅</span><div>Il pulsante <kbd>Salva</kbd> si attiva solo quando ci sono modifiche. Se resta grigio, non hai cambiato nulla.</div></div>
+    </div>
+  </section>
+
+  <!-- 6. TESSERE -->
+  <section id="tessere">
+    <div class="section-head">
+      <div class="num">6</div>
+      <h2 class="title">Emettere e revocare tessere</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Scheda contatto → sezione <b>Tessere</b>. L'elenco di tutte le tessere è nel menu <b>Tesseramenti</b>.</p>
+
+      <h3 style="margin-top:8px">Emettere una tessera</h3>
+      <ol class="steps">
+        <li>Apri la scheda del contatto e la sezione <b>Tessere</b>.</li>
+        <li>Clicca <kbd>Tessera</kbd> (compare solo se il contatto non ha già una tessera attiva per l'anno in corso).</li>
+        <li>Controlla <b>Data inizio</b> (oggi) e <b>Data fine</b> (31/12), aggiungi eventuali note e clicca <kbd>Abilita</kbd>.</li>
+      </ol>
+      <div class="note"><span class="ico">ℹ️</span><div>Il <b>numero tessera</b> è assegnato automaticamente nel formato <b>AAXXXXX</b> (anno + progressivo). Un contatto può avere <b>una sola tessera attiva</b> per anno.</div></div>
+
+      <h3>Revocare una tessera</h3>
+      <ol class="steps">
+        <li>Nella sezione <b>Tessere</b>, individua la tessera attiva.</li>
+        <li>Clicca l'icona <kbd>⋯</kbd> a destra della riga e scegli <kbd>Revoca</kbd>.</li>
+        <li>Conferma nella finestra di avviso.</li>
+      </ol>
+      <div class="warn"><span class="ico">⚠️</span><div>La revoca <b>non è annullabile</b>. Dopo la revoca puoi comunque emettere una nuova tessera per lo stesso contatto.</div></div>
+
+      <p>Significato dei badge di stato:</p>
+      <ul class="plain">
+        <li><span class="pill p-green">TESSERATO</span> attiva &nbsp;·&nbsp; <span class="pill p-red">REVOCATO</span> revocata &nbsp;·&nbsp; <span class="pill p-gray">INATTIVO</span> non più valida</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 7. CONSENSI -->
+  <section id="consensi">
+    <div class="section-head">
+      <div class="num">7</div>
+      <h2 class="title">Registrare i consensi privacy</h2>
+      <div class="tags">
+        <span class="rt rt-v">Volontario</span>
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Scheda contatto → sezione <b>Privacy &amp; Consensi</b>.</p>
+      <ol class="steps">
+        <li>Apri la sezione <b>Privacy &amp; Consensi</b> e clicca <kbd>+ Nuovo consenso</kbd>.</li>
+        <li>Scegli l'<b>Esito</b>: "Accettato" oppure "Rifiutato / Revocato".</li>
+        <li>Indica il <b>Canale di raccolta</b> (Telefono, Email, Cartaceo, Di persona, Web, Altro).</li>
+        <li>Aggiungi eventuali <b>Note</b> e clicca <kbd>Registra</kbd>.</li>
+      </ol>
+      <div class="note"><span class="ico">ℹ️</span><div>Ogni consenso resta nello <b>storico</b> con data, canale ed esito: <span class="pill p-green">Espresso</span> o <span class="pill p-red">Rifiutato</span>. Documenta quando e come è stato raccolto il consenso alla Privacy Policy.</div></div>
+    </div>
+  </section>
+
+  <!-- 8. UTENTI -->
+  <section id="utenti">
+    <div class="section-head blue">
+      <div class="num">8</div>
+      <h2 class="title">Gestire gli utenti</h2>
+      <div class="tags">
+        <span class="rt rt-c">Coordinatore</span>
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Menu: <b>Amministrazione → Utenti</b></p>
+
+      <h3 style="margin-top:8px">Creare un nuovo utente</h3>
+      <ol class="steps">
+        <li>Clicca <kbd>+ Nuovo utente</kbd> in alto a destra.</li>
+        <li>Inserisci <b>Nome</b> ed <b>Email</b> valida (deve contenere la @).</li>
+        <li>Scegli il <b>Ruolo</b>: Superuser, Coordinatore o Volontario.</li>
+        <li>Imposta una <b>Password temporanea</b> (minimo 8 caratteri) e comunicala all'utente.</li>
+        <li>Se serve, assegna i <b>Gruppi visibili</b> cliccando i badge, poi <kbd>Salva</kbd>.</li>
+      </ol>
+      <div class="tip"><span class="ico">✅</span><div>Comunica all'utente la password temporanea: potrà cambiarla in autonomia dopo il primo accesso tramite "Ho dimenticato la password".</div></div>
+
+      <h3>Modificare o eliminare un utente</h3>
+      <ul class="plain">
+        <li><b>Modifica</b>: clicca <kbd>Modifica</kbd> nella riga, cambia i dati e salva. L'email non è modificabile dopo la creazione.</li>
+        <li><b>Elimina</b>: clicca <kbd>Elimina</kbd> e conferma nella finestra di dialogo. L'utente non potrà più accedere e sparirà dalla lista.</li>
+      </ul>
+      <div class="warn"><span class="ico">⚠️</span><div>Non puoi modificare o eliminare il <b>tuo stesso account</b> dalla lista utenti.</div></div>
+    </div>
+  </section>
+
+  <!-- 9. GRUPPI -->
+  <section id="gruppi">
+    <div class="section-head blue">
+      <div class="num">9</div>
+      <h2 class="title">Gruppi territoriali</h2>
+      <div class="tags">
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Menu: <b>Gruppi</b></p>
+      <p>I gruppi sono organizzati ad <b>albero</b>: un gruppo può avere sottogruppi. Accanto al nome vedi il numero di
+      <span style="color:var(--orange);font-weight:600">attivisti</span> e <span style="color:var(--blue);font-weight:600">cittadini</span> assegnati.</p>
+      <ol class="steps">
+        <li><b>Nuovo gruppo</b>: clicca <kbd>+ Nuovo gruppo</kbd> in alto a destra e scegli l'eventuale gruppo padre.</li>
+        <li><b>Aggiungere un sottogruppo</b>: passa il mouse sul gruppo padre e clicca <kbd>+ figlio</kbd>.</li>
+        <li><b>Modificare</b>: passa il mouse sul gruppo e clicca <kbd>Modifica</kbd> (nome, stato, padre, presidente, contatti, IBAN).</li>
+        <li><b>Eliminare</b>: passa il mouse e clicca <kbd>Elimina</kbd>, poi conferma.</li>
+      </ol>
+      <div class="note"><span class="ico">ℹ️</span><div>Eliminando un gruppo, i contatti assegnati <b>non vengono cancellati</b>: perdono solo l'assegnazione a quel gruppo. <b>Volontario</b> e <b>Coordinatore</b> possono consultare i gruppi, ma non modificarli.</div></div>
+    </div>
+  </section>
+
+  <!-- 10. CITTA -->
+  <section id="citta">
+    <div class="section-head blue">
+      <div class="num">10</div>
+      <h2 class="title">Città</h2>
+      <div class="tags">
+        <span class="rt rt-s">Superuser</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="path">Menu: <b>Città</b></p>
+      <ul class="plain">
+        <li>L'elenco dei comuni è già precaricato. Usa la <b>barra di ricerca</b> per trovarne uno.</li>
+        <li><b>Assegnare un comune a un gruppo</b>: nella colonna <b>Gruppo</b>, scegli il gruppo dal menu a tendina.</li>
+        <li>Con il menu <kbd>⋯</kbd> a fine riga puoi <b>Modificare</b> o <b>Eliminare</b> una città; con <kbd>+ Aggiungi città</kbd> ne crei una nuova.</li>
+      </ul>
+      <div class="note"><span class="ico">ℹ️</span><div>L'assegnazione città–gruppo è informativa: aiuta a capire a quale gruppo appartengono i contatti di quella città. <b>Volontario</b> e <b>Coordinatore</b> possono consultare le città, ma non modificarle.</div></div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- GLOSSARIO -->
+  <section id="glossario">
+    <div class="section-head">
+      <div class="num">11</div>
+      <h2 class="title">Glossario rapido</h2>
+    </div>
+    <div class="card">
+      <table>
+        <tbody>
+          <tr><td><b>Attivista</b></td><td>Volontario attivo nell'associazione.</td></tr>
+          <tr><td><b>Cittadino</b></td><td>Cittadino/residente del territorio seguito.</td></tr>
+          <tr><td><b>Non specificato</b></td><td>Contatto di cui non è ancora definito il tipo.</td></tr>
+          <tr><td><span class="pill p-blue">Nuovo</span></td><td>Contatto appena inserito, da lavorare.</td></tr>
+          <tr><td><span class="pill p-green">Attivo</span></td><td>Membro confermato e partecipante.</td></tr>
+          <tr><td><span class="pill p-red">Rifiutato</span></td><td>Ha rifiutato di aderire o di essere contattato.</td></tr>
+          <tr><td><span class="pill p-gray">Inattivo</span></td><td>Era attivo ma non lo è più (storico).</td></tr>
+          <tr><td><b>Tesseramento</b></td><td>Iscrizione annuale del socio, con numero tessera <b>AAXXXXX</b>.</td></tr>
+          <tr><td><b>Consenso privacy</b></td><td>Registrazione di quando e come è stato raccolto il consenso alla Privacy Policy.</td></tr>
+          <tr><td><b>Gruppo territoriale</b></td><td>Struttura organizzativa (con eventuali sottogruppi) a cui si assegnano i contatti.</td></tr>
+          <tr><td><b>Prefisso internazionale</b></td><td>Es. +39 Italia, +33 Francia, +44 UK. Va sempre prima del numero.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>CRM Oltremani · Guida d'uso — versione app 1.0.0</p>
+    <p>Sviluppato da <span class="lp">Limepeak</span> · <a href="https://limepeak.it" target="_blank" rel="noopener">limepeak.it</a></p>
+    <p style="margin-top:10px">💡 Questa guida è consultabile anche direttamente nell'app: menu <b>Guida</b> in basso a sinistra.</p>
+  </footer>
+
+</div>
+</body>
+</html>

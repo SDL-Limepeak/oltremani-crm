@@ -86,8 +86,16 @@ export const deleteUser = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: old } = await supabaseAdmin.from("res_users").select("role").eq("id", data.id).maybeSingle();
     if (old?.role === "admin") throw new Error("Gli amministratori non possono essere eliminati");
+
+    // Remove the auth account. Tolerate "user not found" so a stale profile row
+    // left behind by a previous partial delete can still be cleaned up.
     const { error: e1 } = await supabaseAdmin.auth.admin.deleteUser(data.id);
-    if (e1) throw e1;
+    if (e1 && !/not.?found/i.test(e1.message ?? "")) throw e1;
+
+    // Remove the profile row and its group links so the user disappears from the list.
+    await supabaseAdmin.from("res_user_category_rel").delete().eq("user_id", data.id);
+    await supabaseAdmin.from("res_users").delete().eq("id", data.id);
+
     await context.supabase.from("audit_log").insert({
       log_type: "user_change", action: "delete", model_name: "res_users",
       record_id: data.id, old_values_json: old, changed_by_user_id: context.userId, source: "ui",
