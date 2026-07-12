@@ -420,14 +420,15 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
     ],
   };
 
-  let data, ok;
+  let data, ok, status = 0;
   try {
     const res = await fetch(`${baseUrl}/api/public/contact`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
       body: JSON.stringify(body),
     });
-    data = await res.json();
+    status = res.status;
+    try { data = await res.json(); } catch { data = { error: "Risposta non in formato JSON" }; }
     ok = res.ok && data.ok;
   } catch (err) {
     data = { error: err.message };
@@ -458,13 +459,23 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
       </p>
     `;
   } else {
+    let hint;
+    if (status === 401 || status === 403) hint = "La chiave API non è valida o mancante — controlla il campo X-API-Key qui sopra.";
+    else if (status === 400 || status === 422) hint = "Alcuni dati non sono validi: controlla l'email e i campi obbligatori, poi riprova.";
+    else if (status >= 500) hint = "Il gestionale ha risposto con un errore temporaneo. Riprova tra qualche istante.";
+    else if (status === 0) hint = "Non è stato possibile contattare il gestionale. Controlla la connessione e riprova tra poco.";
+    else hint = "Invio non riuscito. Riprova tra poco.";
     bodyDiv.innerHTML = `
       <div class="result-err">
-        <h3>❌ Errore</h3>
-        <pre>${JSON.stringify(data, null, 2)}</pre>
+        <h3>❌ Invio non riuscito</h3>
+        <p style="font-size:13px;margin-top:4px;color:var(--text)">${hint}</p>
       </div>
-      <p style="font-size:12px;color:var(--muted)">
-        Controlla che il dev server sia attivo e che <strong>SUPABASE_SERVICE_ROLE_KEY</strong> sia nel .env
+      <details style="margin-top:8px">
+        <summary style="font-size:12px;color:var(--muted)">Mostra dettagli tecnici</summary>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+      </details>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">
+        Se il problema si ripete, segnalalo a chi gestisce il sistema indicando cosa stavi inviando.
       </p>
     `;
   }
