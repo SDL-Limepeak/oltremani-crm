@@ -272,6 +272,7 @@ export type Database = {
           category_type: string
           city: string | null
           created_at: string
+          created_by: string | null
           fiscal_code: string | null
           iban: string | null
           id: string
@@ -292,6 +293,7 @@ export type Database = {
           category_type?: string
           city?: string | null
           created_at?: string
+          created_by?: string | null
           fiscal_code?: string | null
           iban?: string | null
           id?: string
@@ -312,6 +314,7 @@ export type Database = {
           category_type?: string
           city?: string | null
           created_at?: string
+          created_by?: string | null
           fiscal_code?: string | null
           iban?: string | null
           id?: string

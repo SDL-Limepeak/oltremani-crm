@@ -88,7 +88,15 @@ export const upsertCategory = createServerFn({ method: "POST" })
         record_id: row.id, old_values_json: old, new_values_json: row, changed_by_user_id: userId, source: "ui",
       });
     } else {
-      const { data: ins, error } = await supabase.from("res_partner_category").insert(data).select().single();
+      // created_by is what lets a non-elevated user read the row back from
+      // INSERT ... RETURNING: rpc_select would otherwise refuse a category that is not
+      // yet in anybody's perimeter, and the whole insert would fail. See migration
+      // 20260725180000.
+      const { data: ins, error } = await supabase
+        .from("res_partner_category")
+        .insert({ ...data, created_by: userId })
+        .select()
+        .single();
       if (error) throw error;
       row = ins;
       await supabase.from("audit_log").insert({

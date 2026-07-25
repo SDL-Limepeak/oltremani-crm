@@ -18,6 +18,21 @@ function anonClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// TODO — SECURITY, before go-live: this endpoint is currently OPEN. Anyone who knows
+// the URL can create contacts; no key, no signature, no rate limit. That is a deliberate
+// choice for the demo phase (2026-07-25), taken so the sample form works with no setup.
+//
+// Before oltremani.it goes live, decide the real protection together with whoever builds
+// the WordPress form. The trade-offs are written up in .claude/architecture.md, section
+// "Protezione dell'endpoint pubblico". In short:
+//   - a shared key only works if WordPress calls from PHP, server-side. From JavaScript
+//     the key ends up in the page source and protects nothing
+//   - whatever the key, it authenticates WordPress and not the person filling the form:
+//     a bot on the real form produces perfectly authenticated junk. That needs a CAPTCHA
+//     (Cloudflare Turnstile) on the WordPress side
+//   - a rate limit is worth more than any key upgrade, and has to live in this code:
+//     the app runs as a worker inside Lovable's infrastructure, so edge WAF rules are
+//     not ours to configure
 export const Route = createFileRoute("/api/public/contact")({
   server: {
     handlers: {
@@ -25,16 +40,12 @@ export const Route = createFileRoute("/api/public/contact")({
         new Response(null, {
           headers: {
             "access-control-allow-origin": "*",
-            "access-control-allow-headers": "content-type, x-api-key",
+            "access-control-allow-headers": "content-type",
             "access-control-allow-methods": "POST, OPTIONS",
           },
         }),
 
       POST: async ({ request }) => {
-        const apiKey  = request.headers.get("x-api-key");
-        const expected = process.env.PUBLIC_API_KEY;
-        if (!expected || apiKey !== expected) return json({ error: "Unauthorized" }, 401);
-
         let body: any;
         try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 

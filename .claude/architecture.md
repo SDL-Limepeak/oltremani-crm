@@ -95,6 +95,40 @@ troppo permissivo. In Postgres `USING` filtra le righe **esistenti**, `WITH CHEC
 **nuove o modificate**: senza il secondo, la riga può essere spostata fuori dal perimetro.
 Per confrontare OLD e NEW (caso 1) una policy non basta: serve un trigger.
 
+### Verifica end-to-end dei permessi — 2026-07-25, 63/63
+
+`scripts/e2e/` contiene un harness ripetibile: crea quattro utenti reali, uno per ruolo,
+fa login davvero e chiama PostgREST col JWT di ciascuno — lo stesso percorso dell'app.
+16 controlli per ruolo. **Rilanciarlo dopo ogni rigenerazione dello schema da parte di
+Lovable**, e leggere il README: documenta cinque trappole che falsavano i risultati,
+la più insidiosa delle quali è che PostgREST risponde `204` a un `DELETE` che la RLS ha
+svuotato, facendo passare un diniego per un permesso.
+
+Ha fatto emergere due bug che la sola lettura del codice non aveva trovato, entrambi
+corretti:
+
+**Un admin poteva retrocedersi, senza ritorno.** `protect_admin_users` proteggeva le
+righe admin solo se `NEW.id <> auth.uid()`, quindi un admin che modificava il *proprio*
+profilo poteva togliersi il ruolo — e la regola successiva, "Cannot promote to admin from
+UI", rendeva la cosa irreversibile. Riprodotto per davvero: per rimettere a posto l'utente
+di test è servito disabilitare il trigger da una sessione privilegiata, perché il trigger
+scatta anche per `query_database`. Con `diego@limepeak.it` unico admin, e l'audit log
+leggibile solo dagli admin, un salvataggio sbagliato sul proprio profilo l'avrebbe chiuso
+fuori per sempre. Migrazione `20260725170000`; procedura d'emergenza nel README dell'harness.
+
+**Un coordinatore non riusciva a creare gruppi.** Stessa radice del bug `INSERT ...
+RETURNING` qui sotto, ma su `res_partner_category`: `upsertCategory` fa
+`.insert().select()`, e `rpc_select` mostrava a un non-elevato solo le categorie già nel
+suo perimetro — una categoria appena creata non è nel perimetro di nessuno, quindi la
+rilettura veniva rifiutata e l'insert falliva con 403. Era rotto rispetto al piano, che
+assegna ai coordinatori la gestione delle categorie. Migrazioni `20260725180000`
+(colonna `created_by` + policy) e `20260725190000`.
+
+Quest'ultima merita una nota: far dipendere la policy da `created_by` funziona ma è
+fragile, perché richiede che *ogni* percorso di insert si ricordi di valorizzare la
+colonna. Un trigger `BEFORE INSERT` la riempie da `auth.uid()` quando è vuota, su
+`res_partner` e `res_partner_category`, così nessuno può dimenticarsene.
+
 ### Bug pre-esistente emerso testando le patch: `INSERT ... RETURNING`
 
 Non causato dalle migrazioni sopra, ma trovato grazie ai loro test di regressione, e **grave**:
@@ -127,12 +161,12 @@ Migrazioni `20260725130000` (can_see_partner, utile per consensi e tesseramenti)
 
 ```
 sito WordPress (o public/test-form.html)
-   │  POST /api/public/contact  ·  header X-API-Key
+   │  POST /api/public/contact        ← nessuna autenticazione, vedi sotto
    ▼
-src/routes/api/public/contact.tsx        ← confronta con process.env.PUBLIC_API_KEY, 401 altrimenti
+src/routes/api/public/contact.tsx     ← valida email e telefono, poi delega
    │  client anon (NON service_role)
    ▼
-RPC submit_public_contact(...)           ← SECURITY DEFINER: qui avviene tutto il lavoro privilegiato
+RPC submit_public_contact(...)        ← SECURITY DEFINER: qui avviene tutto il lavoro privilegiato
    ▼
 audit_log + res_partner + res_partner_category_rel + privacy_consent
 ```
@@ -150,27 +184,29 @@ Logica della RPC:
 
 La route aggiunge `unassigned` come alias di `validation` nella risposta JSON.
 
-`PUBLIC_API_KEY` resta necessaria: la userà WordPress. Nel test form la chiave non è più
-mostrata a video, ma **non è un segreto** — sta nel bundle della pagina e in `.env` versionato.
-Il segreto vero vive server-side su WordPress.
+## Protezione dell'endpoint pubblico
 
-Il valore in uso è stato rigenerato il 2026-07-25: 128 caratteri alfanumerici da
-`RandomNumberGenerator`, presente in [.env](../.env) e in `public/test-form.html`, che devono
-restare **identici al byte** al secret in Lovable Cloud. Resta comunque **non un segreto**: la
-pagina di test è pubblica e la chiave si legge dal sorgente. Per l'integrazione WordPress vera
-va generata una chiave **diversa**, tenuta server-side su WordPress e mai messa nel repo.
+> ⚠️ **Stato attuale: l'endpoint è APERTO.** Nessuna chiave, nessuna firma, nessun rate limit.
+> Chiunque conosca l'URL può creare contatti. Scelta deliberata del 2026-07-25 per la fase
+> demo, presa per far funzionare il form di esempio senza nessuna configurazione, dopo che il
+> secret mancante aveva già bloccato una volta la prova del cliente. **Va richiusa prima del
+> go-live di oltremani.it.** Il TODO è anche in testa a `src/routes/api/public/contact.tsx`.
 
-> ⚠️ **Il secret va impostato in Lovable Cloud, non basta il `.env` versionato.**
-> La route fa `if (!expected || apiKey !== expected) return 401`: se `PUBLIC_API_KEY` non è
-> configurato nell'ambiente di deploy, `expected` è `undefined` e **ogni** richiesta prende 401,
-> anche con la chiave corretta. È esattamente il sintomo segnalato dal cliente il 2026-07-25
-> ("chiave API non valida o mancante"): la demo era irraggiungibile, non stava sbagliando nulla.
-> Verifica rapida dall'esterno — se anche la chiave giusta dà 401, il secret non c'è:
-> ```powershell
-> Invoke-WebRequest -Uri "https://oltremani-crm.lovable.app/api/public/contact" -Method Post `
->   -Headers @{ "X-API-Key" = "test-oltremani-2026" } -ContentType "application/json" `
->   -Body '{"email":"probe@local.invalid"}' -UseBasicParsing
-> ```
+`PUBLIC_API_KEY` è stata **rimossa** da route, test form e `.env`. Prima di reintrodurre una
+protezione, la decisione va presa insieme a chi realizza il form WordPress. Sintesi
+dell'analisi fatta il 2026-07-25, in ordine di valore per lo sforzo:
+
+| | Intervento | Nota |
+|---|---|---|
+| 1 | **WordPress chiama da PHP**, non da JavaScript | decide se tutto il resto ha senso. Con `wp_remote_post()` e la chiave in `wp-config.php` la chiave è un segreto vero; con un webhook lato browser finisce nel sorgente della pagina e non protegge nulla |
+| 2 | **CAPTCHA sul form WordPress** (Cloudflare Turnstile, gratis) | copre il buco che nessuna chiave copre: la chiave autentica *WordPress*, non la persona. Un bot sul form vero produce richieste perfettamente autenticate |
+| 3 | **Rate limit**, obbligatoriamente **in questo codice** | l'app gira come worker nell'infrastruttura di Lovable, quindi le regole WAF di Cloudflare non sono nostre da configurare. `audit_log` già registra ogni chiamata `inbound_form` con timestamp: è la base su cui contare |
+| 4 | Confronto della chiave **a tempo costante** | il piano di build lo chiedeva ("timing-safe"), l'implementazione usava `!==`. Da fare se si reintroduce una chiave |
+| 5 | **CORS chiuso** | oggi `access-control-allow-origin: *`. Finché l'endpoint è aperto non protegge niente, quindi restringerlo sarebbe solo apparenza: va rivisto insieme al punto 1 |
+| 6 | **HMAC + timestamp** (stile webhook Stripe/GitHub) | il segreto non viaggia mai e una richiesta catturata non è riutilizzabile. Sproporzionato per un form di adesione: da valutare solo se l'endpoint gestirà dati più delicati |
+
+Scartati: allowlist per IP (fragile con hosting WordPress condiviso), mTLS e OAuth
+client-credentials (sproporzionati).
 
 ---
 
