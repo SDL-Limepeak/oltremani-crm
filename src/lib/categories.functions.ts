@@ -2,9 +2,36 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Explicit shape so callers get typed fields instead of implicit any (the Supabase
+// select is untyped because of the nested rel). Every field must stay serializable —
+// createServerFn rejects `unknown`, so no index signature here.
+export type CategoryWithCounts = {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  category_type: string;
+  president_first_name: string | null;
+  president_last_name: string | null;
+  president_email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  activation_date: string | null;
+  status: string;
+  fiscal_code: string | null;
+  address: string | null;
+  city: string | null;
+  province_code: string | null;
+  iban: string | null;
+  created_at: string;
+  updated_at: string;
+  activist: number;
+  citizen: number;
+  memberCount: number;
+};
+
 export const listCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }): Promise<CategoryWithCounts[]> => {
     const { data, error } = await (context.supabase as any)
       .from("res_partner_category")
       .select("*, res_partner_category_rel(res_partner(partner_type))")

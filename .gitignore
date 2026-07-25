@@ -32,7 +32,13 @@ dist-ssr
 *.sw?
 
 # Claude Code
-.claude/
+# La cartella .claude/ È versionata: contiene la knowledge base del progetto
+# (branding.md, architecture.md, db-access.md). Fuori solo lo stato locale.
+.claude/settings.local.json
+.mcp.json
+
+# Lock file estraneo: il progetto usa bun (bun.lock)
+package-lock.json
 
 # Temporary
 .tmp/

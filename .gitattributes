@@ -1,0 +1,11 @@
+# Normalizza i fine-riga a LF nel repository.
+# Senza questo, su Windows l'editor scrive CRLF e `eslint`/prettier segnalano
+# migliaia di falsi errori "Delete ␍" che in git non esistono (i file sono già LF).
+* text=auto eol=lf
+
+# Binari: mai toccare
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff  binary
+*.woff2 binary
