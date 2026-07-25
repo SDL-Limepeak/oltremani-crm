@@ -20,6 +20,7 @@ export type Database = {
           changed_by_user_id: string | null
           created_at: string
           id: string
+          ip_address: string | null
           log_type: string
           model_name: string | null
           new_values_json: Json | null
@@ -32,6 +33,7 @@ export type Database = {
           changed_by_user_id?: string | null
           created_at?: string
           id?: string
+          ip_address?: string | null
           log_type: string
           model_name?: string | null
           new_values_json?: Json | null
@@ -44,6 +46,7 @@ export type Database = {
           changed_by_user_id?: string | null
           created_at?: string
           id?: string
+          ip_address?: string | null
           log_type?: string
           model_name?: string | null
           new_values_json?: Json | null

@@ -20,6 +20,17 @@ DELETE FROM audit_log
         OR new_values_json::text LIKE '%e2e%@local.invalid%');
 DELETE FROM audit_log
  WHERE new_values_json::text LIKE '%e2e%@local.invalid%';
+-- Righe lasciate dalle prove di rate limit e dagli altri probe
+DELETE FROM audit_log
+ WHERE new_values_json::text LIKE '%local.invalid%'
+    OR ip_address IN ('203.0.113.7', '198.51.100.4', '127.0.0.1');
+DELETE FROM res_partner_category_rel
+ WHERE partner_id IN (SELECT id FROM res_partner WHERE email LIKE '%local.invalid');
+DELETE FROM privacy_consent
+ WHERE partner_id IN (SELECT id FROM res_partner WHERE email LIKE '%local.invalid');
+DELETE FROM membership_subscription
+ WHERE partner_id IN (SELECT id FROM res_partner WHERE email LIKE '%local.invalid');
+DELETE FROM res_partner WHERE email LIKE '%local.invalid';
 
 DELETE FROM res_users   WHERE email LIKE 'e2e-%@local.invalid';
 DELETE FROM auth.users  WHERE email LIKE 'e2e-%@local.invalid';

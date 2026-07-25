@@ -184,6 +184,100 @@ Logica della RPC:
 
 La route aggiunge `unassigned` come alias di `validation` nella risposta JSON.
 
+## Scan di sicurezza Lovable — 2026-07-25
+
+Cinque finding. Due erano già chiusi, tre sono stati corretti, due resteranno segnalati
+per sempre e sotto è spiegato perché. **Ogni modifica è stata provata in transazione
+annullata prima di applicarla, perché due delle remediation suggerite avrebbero rotto
+l'app.**
+
+| Livello | Finding | Esito |
+|---|---|---|
+| Critical | endpoint pubblico senza auth né rate limit | **rate limit aggiunto**; resta senza auth per scelta |
+| Critical | un utente può promuoversi da solo | **era già chiuso** dal trigger; aggiunto un secondo strato nella policy |
+| Warning | audit_log alterabile o cancellabile | **chiuso** con policy `RESTRICTIVE` |
+| Warning | SECURITY DEFINER eseguibili da `anon` | **ridotto**: `anon` ora ha solo `submit_public_contact` |
+| Warning | SECURITY DEFINER eseguibili dai loggati | **non risolvibile** come suggerito, vedi sotto |
+
+### Rate limit sull'endpoint pubblico
+
+L'endpoint resta **senza autenticazione**: è la decisione presa per la fase demo. Quello
+che è stato chiuso è la parte "unlimited", che è ciò che rende possibile la creazione di
+massa. Migrazione `20260725200000`.
+
+Quote, dentro `submit_public_contact`: 5 invii al minuto per IP, 30 all'ora per IP, 60 al
+minuto in totale come tetto contro i flood distribuiti. Il conteggio usa le righe
+`inbound_form` già presenti in `audit_log`, quindi non serve nessuna tabella nuova; l'IP
+viene registrato su quelle righe, ed è utile di per sé — prima l'audit diceva che un form
+era stato inviato ma non da dove.
+
+**L'ordine conta:** la quota si controlla *prima* di registrare il tentativo. Così una
+richiesta rifiutata non scrive nulla e nessuno può gonfiare `audit_log` martellando un
+endpoint bloccato.
+
+Nella route, `cf-connecting-ip` viene letto **prima** di `x-forwarded-for`: Cloudflare
+imposta il primo da sé e non è falsificabile, mentre al secondo *accoda* quanto ha mandato
+il client, quindi la sua prima voce è controllata dall'attaccante e inutile per un rate
+limit. Gli errori di quota tornano `429` con `Retry-After`, non un 500 fuorviante.
+
+Verificato: sei invii dallo stesso IP → 5 accettati e il sesto bloccato; un IP diverso
+passa senza penalità.
+
+### Le due remediation che avrebbero rotto l'app
+
+Vale la pena saperlo, perché il consiglio del linter è generico e qui è **dannoso**.
+
+**"Revoke EXECUTE" sugli helper delle policy.** Provato: revocando `EXECUTE` su
+`can_see_partner` ad `authenticated`, ogni `SELECT` su `res_partner` muore con
+`permission denied for function can_see_partner`. Le espressioni delle policy vengono
+valutate con i privilegi di chi interroga, quindi quei grant sono portanti. Applicare il
+consiglio alla lettera manda giù l'intero livello di autorizzazione.
+
+Cosa si è potuto fare invece, tutto verificato prima:
+
+- le **funzioni-trigger non richiedono EXECUTE** al chiamante: le invoca il meccanismo dei
+  trigger. Revocate ad `anon` e `authenticated`, insert e update continuano a scattare
+- ad **`anon` serve solo `submit_public_contact`**: tutto il resto revocato, il form regge
+- gli helper mantengono EXECUTE per `authenticated` perché devono, ma la loro superficie è
+  stata chiusa: prendono un parametro `_uid`, quindi un loggato poteva chiamarli via RPC
+  chiedendo di **qualcun altro** — `has_role(<altro>, 'admin')`,
+  `visible_category_ids(<altro>)`. Nessun dato di contatto usciva, ma la struttura dei
+  permessi altrui sì. Ora ogni helper rifiuta un `_uid` diverso da `auth.uid()`. Le policy
+  passano sempre `auth.uid()`, quindi non cambia nulla per loro. `auth.uid()` nullo, cioè
+  `service_role` o contesto SECURITY DEFINER, resta libero
+
+**I finding 4 e 5 continueranno a comparire.** Il linter segnala qualsiasi funzione
+SECURITY DEFINER nello schema esposto che `authenticated` possa eseguire, e queste devono
+restare così perché la RLS funzioni. Azzerarli davvero significa spostare gli helper in
+uno schema che PostgREST non espone e riscrivere tutte le policy che li richiamano, una
+quindicina. **Non fatto di proposito:** il raggio d'azione è l'intero livello di
+autorizzazione, e un agent che rigenerasse lo schema tornerebbe a puntare a `public.*`
+rompendo tutto. Se un domani lo si vuole fare, l'harness in `scripts/e2e/` è lo strumento
+per verificarlo.
+
+### Difesa in profondità su `users_update`
+
+Il trigger bloccava già l'auto-promozione, e la matrice E2E lo confermava. Ma la
+protezione stava in un solo punto: se il trigger venisse rimosso, il buco si riaprirebbe
+in silenzio. Ora c'è anche il `WITH CHECK`.
+
+`WITH CHECK` vede solo la riga NUOVA e non può confrontarla con la vecchia.
+`current_role_name()` risolve comunque: legge il ruolo memorizzato del chiamante, e nella
+stessa istruzione quella lettura vede ancora lo snapshot precedente all'update. Quindi
+pretendere che il ruolo nuovo sia uguale a quello significa "non puoi cambiarti il ruolo",
+mentre admin e superuser passano dal primo ramo.
+
+### `audit_log` a prova di manomissione futura
+
+Il finding notava che oggi non è sfruttabile — RLS attiva e nessuna policy permissiva di
+UPDATE o DELETE — ma che una policy più larga aggiunta domani aprirebbe la manomissione in
+silenzio. Le policy `RESTRICTIVE` rispondono esattamente a questo: sono in **AND** con
+quelle permissive invece che in OR, quindi `USING (false)` tiene chiuso anche se qualcuno
+aggiunge una policy `ALL`. `postgres` e `service_role` scavalcano la RLS, quindi la
+manutenzione legittima continua a funzionare.
+
+Dopo tutti questi interventi la matrice E2E resta **63/63**.
+
 ## Fuori dagli indici — è una demo
 
 Finché il progetto non va pubblico, tutto deve restare fuori dai motori di ricerca e dai
@@ -232,7 +326,7 @@ dell'analisi fatta il 2026-07-25, in ordine di valore per lo sforzo:
 |---|---|---|
 | 1 | **WordPress chiama da PHP**, non da JavaScript | decide se tutto il resto ha senso. Con `wp_remote_post()` e la chiave in `wp-config.php` la chiave è un segreto vero; con un webhook lato browser finisce nel sorgente della pagina e non protegge nulla |
 | 2 | **CAPTCHA sul form WordPress** (Cloudflare Turnstile, gratis) | copre il buco che nessuna chiave copre: la chiave autentica *WordPress*, non la persona. Un bot sul form vero produce richieste perfettamente autenticate |
-| 3 | **Rate limit**, obbligatoriamente **in questo codice** | l'app gira come worker nell'infrastruttura di Lovable, quindi le regole WAF di Cloudflare non sono nostre da configurare. `audit_log` già registra ogni chiamata `inbound_form` con timestamp: è la base su cui contare |
+| 3 | ~~**Rate limit**~~ — **fatto** il 2026-07-25, migrazione `20260725200000` | 5/min e 30/ora per IP, 60/min globali, contando le righe `inbound_form` in `audit_log`. Vedi "Scan di sicurezza Lovable" |
 | 4 | Confronto della chiave **a tempo costante** | il piano di build lo chiedeva ("timing-safe"), l'implementazione usava `!==`. Da fare se si reintroduce una chiave |
 | 5 | **CORS chiuso** | oggi `access-control-allow-origin: *`. Finché l'endpoint è aperto non protegge niente, quindi restringerlo sarebbe solo apparenza: va rivisto insieme al punto 1 |
 | 6 | **HMAC + timestamp** (stile webhook Stripe/GitHub) | il segreto non viaggia mai e una richiesta catturata non è riutilizzabile. Sproporzionato per un form di adesione: da valutare solo se l'endpoint gestirà dati più delicati |

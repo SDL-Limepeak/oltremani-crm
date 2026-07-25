@@ -57,7 +57,13 @@ export const Route = createFileRoute("/api/public/contact")({
           return json({ error: "phone required" }, 400);
         }
 
-        const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? null;
+        // cf-connecting-ip first: Cloudflare sets it itself and a client cannot forge it.
+        // x-forwarded-for is only a fallback — Cloudflare appends to whatever the client
+        // sent, so its first entry is attacker-controlled and useless for rate limiting.
+        const ip =
+          request.headers.get("cf-connecting-ip")?.trim() ||
+          request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
+          null;
         const ua = request.headers.get("user-agent") ?? null;
 
         const { data, error } = await anonClient().rpc("submit_public_contact", {
@@ -73,7 +79,22 @@ export const Route = createFileRoute("/api/public/contact")({
           p_notes:            typeof notes === "string" && notes.trim() ? notes : null,
         });
 
-        if (error) return json({ error: error.message }, 500);
+        if (error) {
+          // The RPC prefixes its throttle messages with "rate limit:" precisely so this
+          // can answer 429 instead of a misleading 500. Retry-After is what a
+          // well-behaved client waits on before trying again.
+          if (error.message?.startsWith("rate limit")) {
+            return new Response(JSON.stringify({ error: error.message }), {
+              status: 429,
+              headers: {
+                "content-type": "application/json",
+                "access-control-allow-origin": "*",
+                "retry-after": "60",
+              },
+            });
+          }
+          return json({ error: error.message }, 500);
+        }
         // unassigned=true means no territorial group was matched — contact will show
         // the "Da assegnare" indicator in the CRM until a group is manually assigned.
         return json({ ...data, unassigned: data?.validation ?? false });
