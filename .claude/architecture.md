@@ -154,6 +154,12 @@ La route aggiunge `unassigned` come alias di `validation` nella risposta JSON.
 mostrata a video, ma **non è un segreto** — sta nel bundle della pagina e in `.env` versionato.
 Il segreto vero vive server-side su WordPress.
 
+Il valore in uso è stato rigenerato il 2026-07-25: 128 caratteri alfanumerici da
+`RandomNumberGenerator`, presente in [.env](../.env) e in `public/test-form.html`, che devono
+restare **identici al byte** al secret in Lovable Cloud. Resta comunque **non un segreto**: la
+pagina di test è pubblica e la chiave si legge dal sorgente. Per l'integrazione WordPress vera
+va generata una chiave **diversa**, tenuta server-side su WordPress e mai messa nel repo.
+
 > ⚠️ **Il secret va impostato in Lovable Cloud, non basta il `.env` versionato.**
 > La route fa `if (!expected || apiKey !== expected) return 401`: se `PUBLIC_API_KEY` non è
 > configurato nell'ambiente di deploy, `expected` è `undefined` e **ogni** richiesta prende 401,

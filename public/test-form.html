@@ -225,14 +225,19 @@
 // locally, in preview and in production without any configuration.
 const ENDPOINT = "/api/public/contact";
 
-// Shared secret for the public API (process.env.PUBLIC_API_KEY server-side). Still
-// needed because it is the one WordPress will send. It is not a secret here: the page
-// is public and anyone can read it in the source. The real secret lives server-side on
-// WordPress, never in a page.
+// Shared key for the public API. Must match PUBLIC_API_KEY in Lovable Cloud > Secrets
+// exactly, or every request comes back 401.
 //
-// If every submission returns 401, PUBLIC_API_KEY is almost certainly not set in
-// Lovable Cloud > Secrets: the route rejects everything when the value is undefined.
-const API_KEY = "test-oltremani-2026";
+// This value is NOT a secret and must not be reused for the real integration: the page
+// is public, so anyone can read it straight out of the source. It exists only so this
+// demo form can exercise the same endpoint WordPress will call. When WordPress goes
+// live, generate a different key, keep it server-side there, and never put it in a page
+// or in this repository.
+//
+// If every submission returns 401, the usual cause is PUBLIC_API_KEY missing from
+// Lovable Cloud > Secrets: the route rejects everything when the value is undefined,
+// even a correct key.
+const API_KEY = "3ylIcsTpgM6zAjYxa4eTZK5cNcCTaGG9T9Lr96aMksM51snVycn9T0IAj6xkQQn8eBQC17jhJrBsq7NZG2vaYeyurIOb7S0BtxJEnEUK7VdtBh8zrRIpLGqTCy5HRgF6";
 
 // Province data: [codice, nome, regione, gruppo_territoriale, city_in_db]
 // city_in_db = the name stored in res_city (= province name from migration)
