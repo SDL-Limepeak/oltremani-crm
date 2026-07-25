@@ -1,23 +1,27 @@
 -- ============================================================================
--- Hardening RLS + integrità dati
+-- RLS hardening + data integrity
 -- ============================================================================
--- Applicata il 2026-07-25 via Lovable MCP (query_database), non tramite l'agent
--- Lovable: registrata qui perché resti tracciata nel repo. Se l'agent rigenera
--- lo schema, ricontrollare che queste policy siano ancora in piedi con le due
--- prove in fondo a .claude/rls-fix.sql.
+-- Applied 2026-07-25 via Lovable MCP (query_database), NOT through the Lovable
+-- agent: recorded here so it stays tracked in the repo. If the agent regenerates
+-- the schema, re-check that these policies are still in place by running the
+-- probes in .claude/rls-tests.sql.
 --
--- Contesto e prove di sfruttabilità: .claude/architecture.md
+-- Context and exploitability proofs: .claude/architecture.md
 -- ============================================================================
 
 
 -- ----------------------------------------------------------------------------
--- 1. Auto-promozione a superuser
+-- 1. Self-promotion to superuser
 -- ----------------------------------------------------------------------------
--- users_update ammette `id = auth.uid()` e non ha WITH CHECK; protect_admin_users
--- bloccava solo 'admin'. Un volontario poteva portarsi a 'superuser' da solo.
--- La correzione va nel trigger perché WITH CHECK vede solo la riga NUOVA: per
--- confrontare OLD e NEW serve un trigger.
--- auth.uid() IS NULL = service_role / seeding server-side, che resta libero.
+-- users_update allows `id = auth.uid()` and has no WITH CHECK, and
+-- protect_admin_users only blocked the 'admin' role. A volunteer could therefore
+-- raise itself to 'superuser'.
+--
+-- The fix belongs in the trigger, not the policy: WITH CHECK only sees the NEW
+-- row, and comparing OLD against NEW requires a trigger.
+--
+-- auth.uid() IS NULL means service_role / server-side seeding, which stays free
+-- to set roles.
 
 CREATE OR REPLACE FUNCTION public.protect_admin_users()
 RETURNS trigger
@@ -53,18 +57,19 @@ $function$;
 
 
 -- ----------------------------------------------------------------------------
--- 2. Auto-assegnazione della visibilità sui contatti
+-- 2. Granting yourself visibility over any contact
 -- ----------------------------------------------------------------------------
--- rpcr_mod aveva WITH CHECK (current_role_name() IS NOT NULL): chiunque potesse
--- autenticarsi inseriva una coppia (partner_id, category_id) arbitraria e si
--- rendeva visibile un contatto precluso.
+-- rpcr_mod had WITH CHECK (current_role_name() IS NOT NULL): any authenticated
+-- user could insert an arbitrary (partner_id, category_id) pair and make a
+-- contact they were not allowed to see visible to themselves.
 --
--- L'eccezione su created_by è necessaria: upsertPartner crea il partner e subito
--- dopo gli attacca le categorie col client dell'utente, quando can_see_partner è
--- ancora false. Senza l'eccezione si romperebbe la creazione contatti per i non-admin.
+-- The created_by exception is required: upsertPartner (src/lib/partners.functions.ts)
+-- creates the partner and immediately attaches its categories using the user's own
+-- client, at which point can_see_partner is still false. Without the exception,
+-- contact creation would break for every non-admin.
 
--- Helper SECURITY DEFINER obbligatorio: un EXISTS diretto su res_partner dentro
--- la policy sarebbe filtrato dalla RLS di res_partner e tornerebbe sempre false.
+-- SECURITY DEFINER helper, mandatory: a plain EXISTS on res_partner inside the
+-- policy would itself be filtered by res_partner's RLS and always return false.
 CREATE OR REPLACE FUNCTION public.partner_created_by(_uid uuid, _partner_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -87,12 +92,17 @@ ALTER POLICY rpcr_mod ON public.res_partner_category_rel
     AND category_id IN (SELECT public.visible_category_ids(auth.uid()))
   );
 
+-- Accepted side effect: a coordinator validating a contact into another area's
+-- category now gets an error instead of succeeding. That matches the permissions
+-- matrix in the build plan; admin and superuser still pass, because
+-- visible_category_ids returns everything for them.
+
 
 -- ----------------------------------------------------------------------------
--- 3. Consensi privacy falsificabili
+-- 3. Forgeable privacy consents
 -- ----------------------------------------------------------------------------
--- consent_mod aveva WITH CHECK (true): si inseriva un consenso per qualsiasi
--- partner, anche non visibile. È un registro GDPR, va chiuso.
+-- consent_mod had WITH CHECK (true): a consent row could be inserted for any
+-- partner, visible or not. This is a GDPR consent register, so it has to be closed.
 
 ALTER POLICY consent_mod ON public.privacy_consent
   USING (public.can_see_partner(auth.uid(), partner_id))
@@ -100,20 +110,21 @@ ALTER POLICY consent_mod ON public.privacy_consent
 
 
 -- ----------------------------------------------------------------------------
--- 4. Audit log falsificabile
+-- 4. Forgeable audit log
 -- ----------------------------------------------------------------------------
--- audit_insert aveva WITH CHECK (true) per authenticated: righe scrivibili a nome
--- di altri. La lettura era già solo admin e non esiste policy DELETE, mancava
--- solo legare l'autore. NULL resta ammesso per le scritture server-side senza uid.
+-- audit_insert had WITH CHECK (true) for authenticated, so rows could be written
+-- in someone else's name. Reads were already admin-only and there is no DELETE
+-- policy, so all that was missing was binding the author.
+-- NULL stays allowed for server-side writes that have no uid.
 
 ALTER POLICY audit_insert ON public.audit_log
   WITH CHECK (changed_by_user_id = auth.uid() OR changed_by_user_id IS NULL);
 
 
 -- ----------------------------------------------------------------------------
--- 5. partner_type senza CHECK
+-- 5. partner_type had no CHECK
 -- ----------------------------------------------------------------------------
--- La UI espone tre valori, il DB accettava qualsiasi stringa.
+-- The UI offers three values, the database accepted any string.
 
 ALTER TABLE public.res_partner
   DROP CONSTRAINT IF EXISTS res_partner_partner_type_check;
@@ -123,10 +134,11 @@ ALTER TABLE public.res_partner
 
 
 -- ----------------------------------------------------------------------------
--- 6. Doppioni email per differenza di maiuscole
+-- 6. Duplicate contacts differing only in letter case
 -- ----------------------------------------------------------------------------
--- res_partner.email era UNIQUE ma case-sensitive, e submit_public_contact cercava
--- con `WHERE email = p_email` esatto: Mario@x.it e mario@x.it creavano DUE partner.
+-- res_partner.email was UNIQUE but case-sensitive, and submit_public_contact
+-- looked it up with `WHERE email = p_email`: Mario@x.it and mario@x.it produced
+-- TWO partners.
 
 UPDATE public.res_partner
    SET email = lower(trim(email))
@@ -139,14 +151,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_partner_email_lower
 
 
 -- ----------------------------------------------------------------------------
--- 7. submit_public_contact: normalizzazione email + escape wildcard
+-- 7. submit_public_contact: email normalisation + wildcard escaping
 -- ----------------------------------------------------------------------------
--- Due correzioni, il resto della logica è identico all'originale:
---   a) email normalizzata a lower(trim()) sia nel lookup sia nell'insert, così
---      il dedup funziona davvero e rispetta il nuovo indice unique
---   b) il fallback città ILIKE '%'||p_city||'%' non escapava % e _ : un input
---      con quei caratteri diventava wildcard e dava match sbagliati
---      (non è SQL injection, la query è comunque parametrizzata)
+-- Two fixes; the rest of the logic is identical to the original:
+--   a) the email is normalised to lower(trim()) both in the lookup and in the
+--      insert, so deduplication actually works and matches the new unique index
+--   b) the city fallback ILIKE '%'||p_city||'%' did not escape % and _ : input
+--      containing those characters behaved as a wildcard and produced wrong
+--      matches (not SQL injection — the query is parameterised regardless)
+--
+-- Superseded by 20260725160000, which adds p_notes and makes phone mandatory.
 
 CREATE OR REPLACE FUNCTION public.submit_public_contact(
   p_first_name text DEFAULT NULL::text,
@@ -178,7 +192,6 @@ BEGIN
     RAISE EXCEPTION 'email required';
   END IF;
 
-  -- NUOVO: normalizzazione, così il dedup non dipende dalle maiuscole
   p_email := lower(trim(p_email));
 
   INSERT INTO audit_log (log_type, action, source, new_values_json)
@@ -219,7 +232,6 @@ BEGIN
      LIMIT 1;
 
     IF v_city_id IS NULL AND p_city IS NOT NULL THEN
-      -- NUOVO: % e _ nell'input non vengono più interpretati come wildcard
       v_city_pattern := '%' || replace(replace(p_city, '%', '\%'), '_', '\_') || '%';
       SELECT id,category_id INTO v_city_id,v_city_category_id
         FROM res_city

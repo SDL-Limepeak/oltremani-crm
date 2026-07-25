@@ -32,7 +32,7 @@ import { useAuthUser } from "@/hooks/use-auth-user";
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Contatti", url: "/contacts", icon: UsersIcon },
-  { title: "Tesseramenti", url: "/subscriptions", icon: CreditCard },
+  { title: "Tesseramento soci", url: "/subscriptions", icon: CreditCard },
   { title: "Gruppi", url: "/groups", icon: FolderTree },
   { title: "Città", url: "/cities", icon: MapPin },
 ];

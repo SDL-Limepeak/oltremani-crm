@@ -44,12 +44,13 @@
 
     .section { margin-bottom: 18px; }
     .section label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
-    .section input, .section select {
-      width: 100%; padding: 9px 12px; font-size: 14px;
+    .section input, .section select, .section textarea {
+      width: 100%; padding: 9px 12px; font-size: 14px; font-family: inherit;
       border: 1.5px solid var(--border); border-radius: 8px;
       background: #fafaf9; color: var(--text); outline: none; transition: border-color .15s;
     }
-    .section input:focus, .section select:focus { border-color: var(--orange); }
+    .section textarea { resize: vertical; }
+    .section input:focus, .section select:focus, .section textarea:focus { border-color: var(--orange); }
 
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -137,8 +138,8 @@
         </div>
 
         <div class="section">
-          <label>Telefono</label>
-          <input name="phone" type="tel" placeholder="+39 333 1234567" />
+          <label>Telefono *</label>
+          <input name="phone" type="tel" placeholder="+39 333 1234567" required />
         </div>
 
         <div class="row2">
@@ -152,6 +153,11 @@
             <label>Città <small style="font-weight:400;text-transform:none">(pre-compilata)</small></label>
             <input name="city" id="city-input" placeholder="Sarà auto-compilata" />
           </div>
+        </div>
+
+        <div class="section">
+          <label>Note / messaggio</label>
+          <textarea name="notes" rows="3" placeholder="Raccontaci qualcosa di te, o cosa ti piacerebbe fare"></textarea>
         </div>
 
         <div class="section">
@@ -214,15 +220,18 @@
 </div>
 
 <script>
-// --- Configurazione ---------------------------------------------------------
-// Questa pagina è servita dall'app stessa, quindi l'endpoint è un path relativo:
-// funziona in locale, in preview e in produzione senza toccare nulla.
+// --- Configuration ----------------------------------------------------------
+// This page is served by the app itself, so the endpoint is a relative path: it works
+// locally, in preview and in production without any configuration.
 const ENDPOINT = "/api/public/contact";
 
-// Chiave condivisa con l'API pubblica (process.env.PUBLIC_API_KEY lato server).
-// Resta necessaria perché è quella che userà WordPress. Qui non è un segreto:
-// la pagina è pubblica e chiunque legge il sorgente la vede. Il segreto vero
-// vivrà server-side su WordPress, mai in una pagina.
+// Shared secret for the public API (process.env.PUBLIC_API_KEY server-side). Still
+// needed because it is the one WordPress will send. It is not a secret here: the page
+// is public and anyone can read it in the source. The real secret lives server-side on
+// WordPress, never in a page.
+//
+// If every submission returns 401, PUBLIC_API_KEY is almost certainly not set in
+// Lovable Cloud > Secrets: the route rejects everything when the value is undefined.
 const API_KEY = "test-oltremani-2026";
 
 // Province data: [codice, nome, regione, gruppo_territoriale, city_in_db]
@@ -392,9 +401,10 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
     first_name: f.first_name.value.trim() || null,
     last_name:  f.last_name.value.trim()  || null,
     email:      f.email.value.trim(),
-    phone:      f.phone.value.trim()      || null,
+    phone:      f.phone.value.trim(),
     city:       f.city.value.trim()       || null,
     province:   f.province.value          || null,
+    notes:      f.notes.value.trim()      || null,
     privacy_consents: [
       { consent_type: "privacy_policy", accepted: f.privacy_policy.checked, version: "1.0" },
       { consent_type: "newsletter",     accepted: f.newsletter.checked,     version: "1.0" },

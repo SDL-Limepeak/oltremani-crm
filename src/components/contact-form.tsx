@@ -127,7 +127,7 @@ export function ContactForm({ initial, onSaved }: Props) {
   return (
     <Card className="p-6 rounded-2xl border-0 shadow-sm space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Tipo e Stato */}
+        {/* Type and status */}
         <div className="space-y-2">
           <Label>Tipo</Label>
           <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>

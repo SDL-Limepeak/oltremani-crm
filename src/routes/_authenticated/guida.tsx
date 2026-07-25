@@ -66,7 +66,7 @@ function GuidaPage() {
           <Li><strong>Attività recente</strong>: le ultime modifiche ai dati (visibile agli admin).</Li>
         </Section>
 
-        {/* Contatti */}
+        {/* Contacts */}
         <Section icon={Users} title="Contatti">
           <Li><strong>Cerca</strong>: usa la barra di ricerca in cima alla lista. Filtra per tipo (Attivista / Cittadino / Non specificato) e per stato.</Li>
           <Li><strong>Ordine lista</strong>: Nuovi → Attivi → Rifiutati → Inattivi.</Li>
@@ -86,7 +86,7 @@ function GuidaPage() {
           <Li><strong>CSV export</strong>: pulsante <strong>"Esporta CSV"</strong> disponibile solo per gli admin.</Li>
         </Section>
 
-        {/* Tessere */}
+        {/* Memberships */}
         <Section icon={CreditCard} title="Tessere (Tesseramenti)">
           <Li>Dalla lista <strong>Tesseramenti</strong> puoi vedere tutte le tessere dell'anno corrente con stato e numero.</Li>
           <Li><strong>Emettere una tessera</strong>: apri la scheda del contatto → tab Tessere → "Emetti nuova tessera". Seleziona l'anno.</Li>
@@ -96,7 +96,7 @@ function GuidaPage() {
           <Li>Badge colori: <strong className="text-emerald-700">TESSERATO</strong> (verde), <strong className="text-destructive">REVOCATO</strong> (rosso), <strong>INATTIVO</strong> (grigio).</Li>
         </Section>
 
-        {/* Gruppi */}
+        {/* Groups */}
         <Section icon={FolderTree} title="Gruppi territoriali">
           <Li>I gruppi sono organizzati ad <strong>albero</strong>: un gruppo può avere sottogruppi figli.</Li>
           <Li>Accanto al nome del gruppo sono indicati il numero di <span className="text-[#E8921E] font-medium">attivisti</span> e di <span className="text-[#1E3271] font-medium">cittadini</span> assegnati.</Li>
@@ -114,7 +114,7 @@ function GuidaPage() {
           <Li>La modifica è disponibile solo per admin e superuser.</Li>
         </Section>
 
-        {/* Utenti */}
+        {/* Users */}
         <Section icon={ShieldCheck} title="Utenti (Amministrazione)">
           <Li>Visibile a coordinatori, superuser e admin.</Li>
           <Li><strong>Ruoli disponibili</strong>:</Li>

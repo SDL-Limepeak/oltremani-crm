@@ -1,21 +1,21 @@
 -- ============================================================================
--- Fix (seguito di 20260725130000): created_by va nella policy, non nella funzione
+-- Fix (follow-up to 20260725130000): created_by belongs in the policy, not the function
 -- ============================================================================
--- Applicata il 2026-07-25 via Lovable MCP (query_database).
+-- Applied 2026-07-25 via Lovable MCP (query_database).
 --
--- Perché la migrazione precedente non bastava: dentro INSERT ... RETURNING la
--- riga appena inserita NON è ancora visibile alle sottoquery della stessa
--- istruzione (command counter). can_see_partner fa
+-- Why the previous migration was not enough: inside INSERT ... RETURNING the row being
+-- inserted is NOT yet visible to subqueries of the same statement (command counter).
+-- can_see_partner does
 --     EXISTS (SELECT 1 FROM res_partner WHERE id = _partner_id AND created_by = _uid)
--- e quella SELECT non trova la riga in corso di inserimento, quindi torna false
--- e RETURNING viene rifiutato comunque.
+-- and that SELECT cannot see the in-flight row, so it returns false and RETURNING is
+-- refused anyway.
 --
--- L'espressione di una policy invece è valutata direttamente sui valori della
--- riga: `created_by = auth.uid()` funziona senza alcun accesso alla tabella.
+-- A policy expression, by contrast, is evaluated directly against the row's values:
+-- `created_by = auth.uid()` works without touching the table at all.
 --
--- La modifica a can_see_partner resta utile e va tenuta: serve per consensi,
--- tesseramenti e relazioni categoria, dove il partner esiste già e la sottoquery
--- lo trova regolarmente.
+-- The change to can_see_partner is still useful and should be kept: it covers consents,
+-- memberships and category relations, where the partner already exists and the subquery
+-- finds it normally.
 -- ============================================================================
 
 ALTER POLICY partner_select ON public.res_partner

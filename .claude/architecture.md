@@ -204,6 +204,27 @@ admin/superuser e bypassano `visible_category_ids`. Ma il primo `coordinator` o 
   Typecheck e build restano puliti. Se l'agent Lovable genera UI che ne richiede uno, lo
   ricreerà da sé — oppure si ripesca dall'archivio.
 
+### ⚠️ Buchi di autorizzazione in `users.functions.ts` — chiusi il 2026-07-25
+
+Trovati rileggendo tutte le server function. Non erano un problema di RLS: **tutte le
+scritture su utenti passano da `supabaseAdmin`**, che bypassa la RLS per definizione. Le
+policy di `res_users` non venivano nemmeno interpellate, quindi i controlli nel codice erano
+l'unica difesa — e mancavano.
+
+| Problema | Chi ne approfittava |
+|---|---|
+| `deleteUser` **non controllava nulla** sul chiamante, solo il ruolo del bersaglio | qualsiasi utente autenticato, volontario incluso, poteva cancellare qualunque account non-admin |
+| `upsertUser` accettava `coordinator` fra i chiamanti e `superuser` fra i ruoli assegnabili | un coordinatore poteva crearsi un superuser, o promuovere un volontario |
+| `upsertUser` non limitava il perimetro del coordinatore | poteva modificare qualsiasi utente non-admin e assegnare gruppi fuori dal proprio ambito |
+
+Ora: eliminazione solo per admin/superuser; un coordinatore non può creare superuser, non può
+toccare utenti che non siano volontari o coordinatori, e può assegnare solo gruppi presenti nel
+proprio `visible_category_ids`.
+
+**Regola generale da tenere:** ogni volta che una server function usa `supabaseAdmin`, i
+controlli di autorizzazione vanno scritti a mano. `cities.functions.ts` lo fa correttamente ed
+è il modello da seguire. Chi usa `context.supabase` è invece coperto dalla RLS.
+
 ### Bug UI corretti il 2026-07-25
 
 - **Non si riusciva a creare più di un gruppo** (`category-dialog.tsx`). L'effetto di reset faceva

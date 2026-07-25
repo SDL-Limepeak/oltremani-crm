@@ -38,8 +38,13 @@ export const Route = createFileRoute("/api/public/contact")({
         let body: any;
         try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
-        const { first_name, last_name, email, phone, city, province, privacy_consents } = body ?? {};
+        const { first_name, last_name, email, phone, city, province, notes, privacy_consents } = body ?? {};
         if (!email || typeof email !== "string") return json({ error: "email required" }, 400);
+        // Phone is mandatory as of the 2026-07-25 feedback. Checked here for a clean 400,
+        // and again inside the RPC because that is the boundary WordPress actually hits.
+        if (!phone || typeof phone !== "string" || !phone.trim()) {
+          return json({ error: "phone required" }, 400);
+        }
 
         const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? null;
         const ua = request.headers.get("user-agent") ?? null;
@@ -48,12 +53,13 @@ export const Route = createFileRoute("/api/public/contact")({
           p_first_name:       first_name ?? null,
           p_last_name:        last_name  ?? null,
           p_email:            email,
-          p_phone:            phone      ?? null,
+          p_phone:            phone,
           p_city:             city       ?? null,
           p_province:         province   ?? null,
           p_privacy_consents: Array.isArray(privacy_consents) ? privacy_consents : null,
           p_ip_address:       ip,
           p_user_agent:       ua,
+          p_notes:            typeof notes === "string" && notes.trim() ? notes : null,
         });
 
         if (error) return json({ error: error.message }, 500);

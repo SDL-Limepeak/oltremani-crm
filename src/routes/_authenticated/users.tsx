@@ -80,9 +80,9 @@ function UsersPage() {
                       {u.res_user_category_rel?.map((r: any) => (
                         <Badge key={r.category_id} variant="secondary" className="rounded-full">{r.res_partner_category?.name}</Badge>
                       ))}
-                      {/* Coordinatori e volontari vedono solo i contatti dei gruppi
-                          assegnati: senza nessun gruppo la loro lista è vuota e nulla
-                          glielo segnala. Admin e superuser vedono tutto, non serve. */}
+                      {/* Coordinators and volunteers only see contacts in the groups
+                          assigned to them, so with no group their list is empty and
+                          nothing says why. Admin and superuser see everything. */}
                       {!u.res_user_category_rel?.length && u.role !== "admin" && u.role !== "superuser" && (
                         <Badge
                           variant="secondary"

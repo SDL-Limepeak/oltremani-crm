@@ -140,6 +140,48 @@ END $$;
 
 
 -- ----------------------------------------------------------------------------
+-- FORM — telefono obbligatorio, note accodate, dedup email case-insensitive
+-- ----------------------------------------------------------------------------
+-- Attesi: A) BLOCCATO   B) note col prefisso data   C) le due note accodate
+DO $$
+DECLARE
+  r jsonb; e1 text; e2 text; e3 text;
+BEGIN
+  BEGIN
+    r := submit_public_contact('Mario','Rossi','pf-a@local.invalid',NULL,'Ragusa','RG',NULL,NULL,NULL,NULL);
+    e1 := 'NON PROTETTO: accettato senza telefono';
+  EXCEPTION WHEN others THEN e1 := 'BLOCCATO: ' || SQLERRM; END;
+
+  BEGIN
+    r := submit_public_contact('Anna','Verdi','pf-b@local.invalid','+39 333 1112223','Ragusa','RG',
+                               NULL,NULL,NULL,'Vorrei fare volontariato nel weekend');
+    e2 := 'note = ' || coalesce((SELECT notes FROM res_partner WHERE id=(r->>'partner_id')::uuid),'(vuote)');
+  EXCEPTION WHEN others THEN e2 := 'ROTTO: ' || SQLERRM; END;
+
+  -- Email volutamente in maiuscolo: deve trovare lo stesso contatto e ACCODARE
+  BEGIN
+    r := submit_public_contact('Anna','Verdi','PF-B@Local.Invalid','+39 333 1112223','Ragusa','RG',
+                               NULL,NULL,NULL,'Aggiungo che parlo arabo');
+    e3 := 'note dopo il 2o invio = ' ||
+          replace(coalesce((SELECT notes FROM res_partner WHERE id=(r->>'partner_id')::uuid),''), E'\n', ' / ');
+  EXCEPTION WHEN others THEN e3 := 'ROTTO: ' || SQLERRM; END;
+
+  RAISE EXCEPTION E'FORM >>>\n  A) %\n  B) %\n  C) %', e1, e2, e3;
+END $$;
+
+
+-- ----------------------------------------------------------------------------
+-- Una sola versione di submit_public_contact
+-- ----------------------------------------------------------------------------
+-- CREATE OR REPLACE non sostituisce la funzione se cambia la firma: crea un
+-- overload accanto. Con due versioni PostgREST puo risolvere sulla vecchia e la
+-- correzione non si applica, in silenzio. Deve dare n = 1.
+SELECT count(*) AS versioni_submit_public_contact
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname = 'submit_public_contact';
+
+
+-- ----------------------------------------------------------------------------
 -- Controllo residui: dopo i test i conteggi devono essere identici a prima
 -- ----------------------------------------------------------------------------
 SELECT (SELECT count(*) FROM res_users)  AS utenti,

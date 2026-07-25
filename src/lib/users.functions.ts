@@ -23,6 +23,17 @@ const UserInput = z.object({
   password: z.string().min(8).max(72).optional(),
 });
 
+// Every write below goes through supabaseAdmin, which bypasses RLS. That makes these
+// checks the only thing standing between a caller and the whole user table, so they
+// have to be explicit — the res_users policies never get a chance to run.
+async function requireUserManager(supabase: any, userId: string) {
+  const { data: callerRow } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+  if (!callerRow || !["admin", "superuser", "coordinator"].includes(callerRow.role)) {
+    throw new Error("Non autorizzato");
+  }
+  return callerRow.role as string;
+}
+
 export const upsertUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => UserInput.parse(d))
@@ -30,10 +41,29 @@ export const upsertUser = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Authorize caller
-    const { data: callerRow } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
-    if (!callerRow || !["admin", "superuser", "coordinator"].includes(callerRow.role)) {
-      throw new Error("Non autorizzato");
+    const callerRole = await requireUserManager(supabase, userId);
+    const isElevated = callerRole === "admin" || callerRole === "superuser";
+
+    // A coordinator manages its own team, not its peers or its superiors: without this
+    // it could mint a superuser account (or promote a volunteer into one) and escalate.
+    if (!isElevated) {
+      if (data.role === "superuser") {
+        throw new Error("Solo admin o superuser possono creare utenti superuser");
+      }
+      if (data.id) {
+        const { data: target } = await supabaseAdmin
+          .from("res_users").select("role").eq("id", data.id).maybeSingle();
+        if (target && !["volunteer", "coordinator"].includes(target.role)) {
+          throw new Error("Non autorizzato a modificare questo utente");
+        }
+      }
+      // ...and it can only hand out groups it can see itself.
+      const { data: visible } = await (supabase as any).rpc("visible_category_ids", { _uid: userId });
+      const allowed = new Set((visible ?? []).map((v: any) => (typeof v === "string" ? v : v.visible_category_ids)));
+      const outOfScope = data.category_ids.filter((c) => !allowed.has(c));
+      if (outOfScope.length) {
+        throw new Error("Non autorizzato ad assegnare gruppi fuori dal proprio perimetro");
+      }
     }
 
     let uid = data.id;
@@ -84,6 +114,15 @@ export const deleteUser = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // This used to check nothing but the target's role, and it deletes through
+    // supabaseAdmin: any authenticated user, volunteer included, could wipe out any
+    // non-admin account. Deleting people is an admin/superuser action only.
+    const callerRole = await requireUserManager(context.supabase, context.userId);
+    if (!["admin", "superuser"].includes(callerRole)) {
+      throw new Error("Solo admin o superuser possono eliminare utenti");
+    }
+
     const { data: old } = await supabaseAdmin.from("res_users").select("role").eq("id", data.id).maybeSingle();
     if (old?.role === "admin") throw new Error("Gli amministratori non possono essere eliminati");
 

@@ -147,6 +147,18 @@ un'auth riuscita lo stato resta bloccato, serve un riavvio completo di VS Code.
    e il messaggio torna comunque a chi ha lanciato la query. Utile per verificare le policy RLS
    impersonando un ruolo con `SET LOCAL ROLE authenticated` + `set_config('request.jwt.claims', ...)`.
 4. `query_database` con più statement separati da `;` restituisce **solo il risultato dell'ultimo**.
+5. **`CREATE OR REPLACE FUNCTION` non sostituisce nulla se cambi la firma**: crea un *overload*
+   accanto alla versione vecchia. Con due versioni in giro PostgREST può risolvere una chiamata
+   RPC sulla precedente e la modifica sembra non aver avuto effetto. Dopo ogni cambio di
+   parametri fai il `DROP FUNCTION` esplicito della firma vecchia e verifica:
+   ```sql
+   SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname='public' AND p.proname='<nome>';
+   ```
+   Capitato per davvero aggiungendo `p_notes` a `submit_public_contact`.
+6. Se lanci l'SQL da PowerShell, **non costruire il JSON con `ConvertTo-Json`**: in PS 5.1 una
+   stringa lunga multi-riga viene serializzata come `{"value":…,"Count":…}` invece che come
+   stringa JSON, e il server risponde `Parse error: Invalid JSON`. Serve un escape manuale.
 
 ---
 

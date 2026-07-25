@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listPartners } from "@/lib/partners.functions";
 import { listCategories } from "@/lib/categories.functions";
+import { exportContacts } from "@/lib/exports.functions";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { Plus, Download, AlertCircle, HeartHandshake, Home, UserRound } from "lucide-react";
 
@@ -44,6 +46,7 @@ function ContactsPage() {
   const { profile } = useAuthUser();
   const isAdmin = profile?.role === "admin";
   const [filters, setFilters] = useState<{ status?: string; partner_type?: string; category_id?: string; year?: number; has_active_sub?: boolean; search?: string }>({});
+  const [exporting, setExporting] = useState(false);
 
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
   const { data, isLoading } = useQuery({
@@ -57,18 +60,26 @@ function ContactsPage() {
     if (aNoGroup !== bNoGroup) return aNoGroup ? -1 : 1;
     return (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
   });
-  const csv = useMemo(() => {
-    const head = ["nome", "cognome", "email", "telefono", "città", "provincia", "stato"];
-    const body = rows.map((r: any) => [r.first_name, r.last_name, r.email, r.phone ?? r.mobile, r.res_city?.name ?? r.raw_city, r.res_city?.province_code ?? r.raw_province, r.status].map(v => `"${(v ?? "").toString().replace(/"/g, '""')}"`).join(","));
-    return [head.join(","), ...body].join("\n");
-  }, [rows]);
-
-  function exportCsv() {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `contatti-${Date.now()}.csv`; a.click();
-    URL.revokeObjectURL(url);
+  // Built server-side: the export must cover every matching contact, not just the page
+  // currently loaded in the table. It is also recorded in the audit log.
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const { csv, count } = await exportContacts({ data: filters as any });
+      // BOM so Excel opens accented names as UTF-8 instead of mojibake.
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contatti-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(count === 1 ? "1 contatto esportato" : `${count} contatti esportati`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export non riuscito");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -78,7 +89,10 @@ function ContactsPage() {
       actions={
         <div className="flex gap-2">
           {isAdmin && (
-            <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />Esporta CSV</Button>
+            <Button variant="outline" onClick={exportCsv} disabled={exporting}>
+              <Download className="h-4 w-4 mr-2" />
+              {exporting ? "Esportazione…" : "Esporta CSV"}
+            </Button>
           )}
           <Button asChild><Link to="/contacts/new"><Plus className="h-4 w-4 mr-2" />Nuovo contatto</Link></Button>
         </div>

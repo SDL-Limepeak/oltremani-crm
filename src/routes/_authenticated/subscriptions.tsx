@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export const Route = createFileRoute("/_authenticated/subscriptions")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Tesseramenti · Oltremani" }] }),
+  head: () => ({ meta: [{ title: "Tesseramento soci APS/ODV locali · Oltremani" }] }),
   component: SubsPage,
 });
 
@@ -20,7 +20,7 @@ function SubsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["subs", year], queryFn: () => listSubscriptions({ data: { year } }) });
 
   return (
-    <AppShell title="Tesseramenti" subtitle="Iscrizioni soci per anno">
+    <AppShell title="Tesseramento soci APS/ODV locali" subtitle="Iscrizioni soci per anno">
       <div className="mb-4 flex gap-2 items-center">
         <span className="text-sm text-muted-foreground">Anno</span>
         <Select value={String(year)} onValueChange={v => setYear(Number(v))}>

@@ -260,7 +260,7 @@ function ContactDetail() {
         <Card className="rounded-2xl border-0 shadow-sm overflow-hidden">
           <div className="divide-y divide-border/20">
 
-            {/* Gruppi */}
+            {/* Groups */}
             <div>
               <SectionHeader title="Gruppi" icon={FolderTree} isOpen={open.groups} onToggle={() => toggle("groups")} />
               {open.groups && (
@@ -379,7 +379,7 @@ function ContactDetail() {
               )}
             </div>
 
-            {/* Tessere */}
+            {/* Memberships */}
             <div>
               <SectionHeader title="Tessere" icon={CreditCard} isOpen={open.subs} onToggle={() => toggle("subs")} />
               {open.subs && (

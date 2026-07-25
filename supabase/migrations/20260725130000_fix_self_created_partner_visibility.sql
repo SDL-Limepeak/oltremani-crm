@@ -1,35 +1,34 @@
 -- ============================================================================
--- Fix: un non-admin non riusciva a creare contatti dall'app
+-- Fix: a non-admin user could not create a contact from the app
 -- ============================================================================
--- Applicata il 2026-07-25 via Lovable MCP (query_database).
+-- Applied 2026-07-25 via Lovable MCP (query_database).
 --
--- Bug PRE-ESISTENTE, emerso testando la migrazione 20260725120000 e non causato
--- da essa: nessuna policy di quella migrazione toccava res_partner.
+-- PRE-EXISTING bug, surfaced while testing migration 20260725120000 and not caused
+-- by it: none of that migration's policies touched res_partner.
 --
--- Sintomo: upsertPartner (src/lib/partners.functions.ts) fa
+-- Symptom: upsertPartner (src/lib/partners.functions.ts) runs
 --     .from("res_partner").insert(payload).select().single()
--- che a livello SQL è INSERT ... RETURNING. Postgres applica la policy SELECT
--- anche alle righe restituite da RETURNING. partner_select richiede
--- can_see_partner(), che si basa solo sulle categorie: un contatto appena creato
--- non ne ha ancora nessuna, quindi la lettura di ritorno veniva rifiutata e
--- l'intera insert falliva con
+-- which in SQL is INSERT ... RETURNING. Postgres applies the SELECT policy to rows
+-- returned by RETURNING as well. partner_select relied purely on categories, and a
+-- freshly created contact has none yet, so the read-back was refused and the whole
+-- insert failed with
 --     new row violates row-level security policy for table "res_partner"
 --
--- Verificato: stessa INSERT senza RETURNING passa, con RETURNING no.
+-- Verified: the same INSERT without RETURNING succeeds, with RETURNING it does not.
 --
--- Perché non se ne è accorto nessuno: gli unici due utenti sono admin e
--- superuser, che scavalcano il controllo via is_admin_or_super(). Il problema si
--- manifesta al primo coordinator o volunteer.
+-- Why nobody noticed: the only two users are admin and superuser, who short-circuit
+-- through is_admin_or_super(). It would have shown up with the first coordinator.
 --
--- Correzione: chi ha creato un contatto lo vede, indipendentemente dalle
--- categorie. Messa dentro can_see_partner così vale in modo coerente anche per
--- tesseramenti, consensi e relazioni categoria, invece di rincorrere una policy
--- alla volta.
+-- Fix: whoever created a contact can see it, regardless of categories. Placed inside
+-- can_see_partner so it applies consistently to memberships, consents and category
+-- relations too, instead of chasing one policy at a time.
 --
--- Nota sicurezza: created_by non è sfruttabile per scalare privilegi. Per
--- impostarlo su un contatto altrui servirebbe una UPDATE su quel contatto, che
--- richiede già di poterlo vedere. Impostarlo su un contatto nuovo non dà accesso
--- a nulla che non si sia creati da soli.
+-- Security note: created_by is not exploitable for escalation. Setting it on someone
+-- else's contact would require an UPDATE on that contact, which already requires
+-- being able to see it. Setting it on a brand new contact grants no access to
+-- anything the caller did not create.
+--
+-- NOTE: this migration alone was NOT enough — see 20260725140000.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.can_see_partner(_uid uuid, _partner_id uuid)
@@ -50,6 +49,6 @@ AS $function$
          );
 $function$;
 
--- La OR su partner_created_by() dentro rpcr_mod (migrazione 20260725120000) è ora
--- ridondante, perché can_see_partner copre già il caso. La lascio: è innocua e
--- documenta l'intento. La funzione partner_created_by resta definita.
+-- The OR on partner_created_by() inside rpcr_mod (migration 20260725120000) is now
+-- redundant, since can_see_partner already covers that case. Left in place: it is
+-- harmless and documents the intent. partner_created_by stays defined.

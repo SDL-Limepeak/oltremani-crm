@@ -12,7 +12,6 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@fontsource/fraunces": "^5.2.9",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/raleway": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",

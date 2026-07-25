@@ -47,10 +47,10 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
   const presRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Va fuso su EMPTY, non sullo stato precedente: `initial` per un nuovo gruppo
-    // non contiene `id`, quindi con `{ ...f, ...initial }` l'id di un gruppo aperto
-    // prima in modifica restava appiccicato al form e upsertCategory prendeva il
-    // ramo UPDATE, riscrivendo quel gruppo invece di crearne uno nuovo.
+    // Merge onto EMPTY, not onto the previous state. For a new group `initial` carries
+    // no `id`, so `{ ...f, ...initial }` kept the id of whichever group was last opened
+    // for editing: upsertCategory then took the UPDATE branch and overwrote that group
+    // instead of creating a new one.
     if (initial) {
       setF({ ...EMPTY, ...initial });
       const name = [initial.president_first_name, initial.president_last_name].filter(Boolean).join(" ");
@@ -59,7 +59,6 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
       setF(EMPTY);
       setPresSearch("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
   // Close dropdown on outside click
@@ -91,7 +90,7 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
         <DialogHeader><DialogTitle>{initial?.id ? "Modifica gruppo" : "Nuovo gruppo"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
-          {/* Nome + Stato */}
+          {/* Name + status */}
           <div className="space-y-2 md:col-span-2"><Label>Nome</Label><Input value={f.name} onChange={e => set("name", e.target.value)} /></div>
           <div className="space-y-2">
             <Label>Stato</Label>
@@ -104,7 +103,7 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
             </Select>
           </div>
 
-          {/* Gruppo padre */}
+          {/* Parent group */}
           <div className="space-y-2">
             <Label>Gruppo padre</Label>
             <Select value={f.parent_id ?? "none"} onValueChange={v => set("parent_id", v === "none" ? null : v)}>
@@ -118,7 +117,7 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
             </Select>
           </div>
 
-          {/* Presidente — lookup soci */}
+          {/* President - member lookup */}
           <div className="space-y-2 md:col-span-2" ref={presRef}>
             <Label>Presidente (socio censito)</Label>
             <div className="relative">
@@ -159,7 +158,7 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
             )}
           </div>
 
-          {/* Contatti organizzativi */}
+          {/* Organisation contact details */}
           <div className="space-y-2"><Label>Telefono</Label><Input value={f.phone ?? ""} onChange={e => set("phone", e.target.value)} /></div>
           <div className="space-y-2"><Label>Codice Fiscale</Label><Input value={f.fiscal_code ?? ""} onChange={e => set("fiscal_code", e.target.value)} /></div>
           <div className="space-y-2"><Label>IBAN</Label><Input value={f.iban ?? ""} onChange={e => set("iban", e.target.value)} /></div>
