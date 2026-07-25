@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { listUsers, upsertUser, deleteUser } from "@/lib/users.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { UserDialog } from "@/components/user-dialog";
@@ -76,10 +76,23 @@ function UsersPage() {
                   <td className="p-4 text-muted-foreground">{u.email}</td>
                   <td className="p-4">{ROLE_LABEL[u.role] ?? u.role}</td>
                   <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {u.res_user_category_rel?.map((r: any) => (
                         <Badge key={r.category_id} variant="secondary" className="rounded-full">{r.res_partner_category?.name}</Badge>
                       ))}
+                      {/* Coordinatori e volontari vedono solo i contatti dei gruppi
+                          assegnati: senza nessun gruppo la loro lista è vuota e nulla
+                          glielo segnala. Admin e superuser vedono tutto, non serve. */}
+                      {!u.res_user_category_rel?.length && u.role !== "admin" && u.role !== "superuser" && (
+                        <Badge
+                          variant="secondary"
+                          className="rounded-full bg-amber-100 text-amber-900 gap-1"
+                          title="Senza gruppi assegnati questo utente non vedrà nessun contatto"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          Nessun gruppo
+                        </Badge>
+                      )}
                     </div>
                   </td>
                   <td className="p-4"><Badge variant={u.status === "active" ? "default" : "secondary"} className="rounded-full">{u.status}</Badge></td>

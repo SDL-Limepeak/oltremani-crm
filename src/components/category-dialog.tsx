@@ -33,23 +33,34 @@ interface Props {
   onSaved: (vals: CategoryFormValues) => void;
 }
 
+const EMPTY: CategoryFormValues = {
+  name: "",
+  parent_id: null,
+  category_type: "territorial",
+  status: "active",
+};
+
 export function CategoryDialog({ open, onOpenChange, initial, categories = [], onSaved }: Props) {
-  const [f, setF] = useState<CategoryFormValues>({ name: "", parent_id: null, category_type: "territorial", status: "active" });
+  const [f, setF] = useState<CategoryFormValues>(EMPTY);
   const [presSearch, setPresSearch] = useState("");
   const [presOpen, setPresOpen] = useState(false);
   const presRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Va fuso su EMPTY, non sullo stato precedente: `initial` per un nuovo gruppo
+    // non contiene `id`, quindi con `{ ...f, ...initial }` l'id di un gruppo aperto
+    // prima in modifica restava appiccicato al form e upsertCategory prendeva il
+    // ramo UPDATE, riscrivendo quel gruppo invece di crearne uno nuovo.
     if (initial) {
-      setF({ ...f, ...initial });
+      setF({ ...EMPTY, ...initial });
       const name = [initial.president_first_name, initial.president_last_name].filter(Boolean).join(" ");
       setPresSearch(name);
     } else {
-      setF({ name: "", parent_id: null, category_type: "territorial", status: "active" });
+      setF(EMPTY);
       setPresSearch("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, initial]);
 
   // Close dropdown on outside click
   useEffect(() => {

@@ -59,6 +59,7 @@ export type Database = {
           created_by: string | null
           end_date: string | null
           id: string
+          membership_number: string | null
           notes: string | null
           partner_id: string
           start_date: string
@@ -72,6 +73,7 @@ export type Database = {
           created_by?: string | null
           end_date?: string | null
           id?: string
+          membership_number?: string | null
           notes?: string | null
           partner_id: string
           start_date?: string
@@ -85,6 +87,7 @@ export type Database = {
           created_by?: string | null
           end_date?: string | null
           id?: string
+          membership_number?: string | null
           notes?: string | null
           partner_id?: string
           start_date?: string

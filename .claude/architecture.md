@@ -74,29 +74,52 @@ riga in `res_partner_category_rel` è invisibile a chiunque non sia admin/superu
 promozione ad admin) · `handle_new_user` su `auth.users` AFTER INSERT → crea la riga `res_users`
 con ruolo da `raw_user_meta_data->>'role'`, default `volunteer`.
 
-### ⚠️ Buchi RLS noti (non ancora corretti)
+### Buchi RLS — trovati e chiusi il 2026-07-25
 
-Verificati empiricamente su DB reale, in transazioni annullate. Vedi `.claude/rls-fix.sql`
-per le patch proposte, **da applicare via agent Lovable**.
+Tutti verificati empiricamente sul DB reale, in transazioni annullate, e ri-verificati dopo
+la correzione. Le prove sono in `.claude/rls-tests.sql`: **rilanciarle dopo ogni rigenerazione
+dello schema da parte dell'agent Lovable**, perché le migrazioni sono state applicate
+direttamente via `query_database` e Lovable non le ha nel suo changelog.
 
-1. **Auto-promozione a superuser.** La policy `users_update` su `res_users` ammette
-   `id = auth.uid()` senza `WITH CHECK`, e `protect_admin_users` blocca solo il ruolo `admin`.
-   Un volontario può quindi eseguire `PATCH /res_users?id=eq.<sé stesso>` con `{"role":"superuser"}`
-   e ottenere accesso a tutti i contatti e alla gestione utenti.
-   *Testato: `UPDATE riuscito, ruolo ora = superuser`.*
+| # | Problema | Stato | Migrazione |
+|---|---|---|---|
+| 1 | Un volontario poteva portarsi a `superuser` da solo (`users_update` ammette `id = auth.uid()`, nessun `WITH CHECK`, e il trigger bloccava solo `admin`) | chiuso | `20260725120000` |
+| 2 | Chiunque autenticato poteva inserire una coppia `(partner_id, category_id)` arbitraria e rendersi visibile un contatto precluso | chiuso | `20260725120000` |
+| 3 | `consent_mod` con `WITH CHECK (true)`: consensi GDPR falsificabili per qualsiasi partner | chiuso | `20260725120000` |
+| 4 | `audit_insert` con `WITH CHECK (true)`: audit trail scrivibile a nome di altri | chiuso | `20260725120000` |
+| 5 | `partner_type` senza CHECK | chiuso | `20260725120000` |
+| 6 | `email` UNIQUE ma case-sensitive: `Mario@x.it` e `mario@x.it` creavano due partner | chiuso | `20260725120000` |
 
-2. **Auto-assegnazione visibilità.** La policy `rpcr_mod` su `res_partner_category_rel` ha
-   `WITH CHECK (current_role_name() IS NOT NULL)`: qualsiasi utente autenticato può inserire una
-   coppia `(partner_id, category_id)` arbitraria e rendersi visibile un contatto che non poteva vedere.
-   *Testato: `vedeva_prima=false vede_dopo=true`.*
-
-3. Stessa radice, gravità minore: `consent_mod` su `privacy_consent` ha `WITH CHECK (true)`
-   (consensi falsificabili per qualsiasi partner) e `audit_insert` su `audit_log` ha
-   `WITH CHECK (true)` per `authenticated` (audit trail falsificabile — la lettura invece è solo admin).
-
-Radice comune: policy `FOR ALL` / `UPDATE` con `USING` corretto ma `WITH CHECK` assente o troppo
-permissivo. In Postgres `USING` filtra le righe **esistenti**, `WITH CHECK` valida quelle
+Radice comune di 1–4: policy `FOR ALL` / `UPDATE` con `USING` corretto ma `WITH CHECK` assente o
+troppo permissivo. In Postgres `USING` filtra le righe **esistenti**, `WITH CHECK` valida quelle
 **nuove o modificate**: senza il secondo, la riga può essere spostata fuori dal perimetro.
+Per confrontare OLD e NEW (caso 1) una policy non basta: serve un trigger.
+
+### Bug pre-esistente emerso testando le patch: `INSERT ... RETURNING`
+
+Non causato dalle migrazioni sopra, ma trovato grazie ai loro test di regressione, e **grave**:
+nessun utente non-admin riusciva a creare un contatto dall'app.
+
+`upsertPartner` fa `.insert(payload).select().single()`, che in SQL è `INSERT ... RETURNING`.
+Postgres applica la policy **SELECT** anche alle righe restituite da `RETURNING`, e
+`partner_select` si basava solo sulle categorie: un contatto appena creato non ne ha, quindi la
+lettura di ritorno veniva rifiutata e l'insert intera falliva.
+
+Non se n'era accorto nessuno perché gli unici due utenti sono admin e superuser, che scavalcano
+via `is_admin_or_super()`. Si sarebbe manifestato al primo `coordinator` creato.
+
+Correzione in due passi, e il primo **da solo non funzionava**: aggiungere `created_by` dentro
+`can_see_partner` è inutile per questo caso, perché la riga in corso di inserimento non è
+visibile alle sottoquery della stessa istruzione. Il controllo va **nell'espressione della
+policy**, dove `created_by` è una colonna della riga valutata:
+
+```sql
+ALTER POLICY partner_select ON res_partner
+  USING (can_see_partner(auth.uid(), id) OR created_by = auth.uid());
+```
+
+Migrazioni `20260725130000` (can_see_partner, utile per consensi e tesseramenti) e
+`20260725140000` (le due policy, è quella che risolve davvero).
 
 ---
 
@@ -131,13 +154,25 @@ La route aggiunge `unassigned` come alias di `validation` nella risposta JSON.
 mostrata a video, ma **non è un segreto** — sta nel bundle della pagina e in `.env` versionato.
 Il segreto vero vive server-side su WordPress.
 
+> ⚠️ **Il secret va impostato in Lovable Cloud, non basta il `.env` versionato.**
+> La route fa `if (!expected || apiKey !== expected) return 401`: se `PUBLIC_API_KEY` non è
+> configurato nell'ambiente di deploy, `expected` è `undefined` e **ogni** richiesta prende 401,
+> anche con la chiave corretta. È esattamente il sintomo segnalato dal cliente il 2026-07-25
+> ("chiave API non valida o mancante"): la demo era irraggiungibile, non stava sbagliando nulla.
+> Verifica rapida dall'esterno — se anche la chiave giusta dà 401, il secret non c'è:
+> ```powershell
+> Invoke-WebRequest -Uri "https://oltremani-crm.lovable.app/api/public/contact" -Method Post `
+>   -Headers @{ "X-API-Key" = "test-oltremani-2026" } -ContentType "application/json" `
+>   -Body '{"email":"probe@local.invalid"}' -UseBasicParsing
+> ```
+
 ---
 
 ## Divergenze dal piano
 
 | Piano | Realtà | Impatto |
 |---|---|---|
-| `res_city` = ~8000 comuni ISTAT | **107 righe: solo i capoluoghi di provincia** | Un comune non capoluogo (Modica, Vittoria, Gela…) non fa match e il contatto finisce in `Validation`. È la divergenza con più impatto funzionale |
+| `res_city` = ~8000 comuni ISTAT | **107 righe: solo i capoluoghi di provincia** — scelta **voluta**, è il dataset di test. I comuni ISTAT completi verranno caricati più avanti | Finché resta così, ogni comune non capoluogo (Modica, Vittoria, Gela…) non fa match e il contatto finisce in `Validation`. Atteso, non è un bug |
 | 8 categorie territoriali | 9 — c'è anche `1 - GRUPPI INFORMALI (NON APS/ODV)` | nessuno |
 | `res_users.id` = `auth.users.id` | vero, ma **senza FK** | la cancellazione va gestita a mano nel codice applicativo (fatto nel commit 757ac9b) |
 | `source='website'` nell'audit | `source='public_form'` | cosmetico |
@@ -154,13 +189,28 @@ admin/superuser e bypassano `visible_category_ids`. Ma il primo `coordinator` o 
 
 `tsc --noEmit` pulito · `vite build` pulito.
 
-- `src/integrations/supabase/types.ts` è **generato e obsoleto**: manca
-  `membership_subscription.membership_number` e il valore `revoked`. Da rigenerare lato Lovable.
-  È la ragione di parecchi `as any` sui client Supabase.
+- `src/integrations/supabase/types.ts` è generato ma **corretto a mano** il 2026-07-25 per
+  aggiungere `membership_subscription.membership_number`, che mancava pur essendo una colonna
+  reale e usata in tutta la UI. Se Lovable lo rigenera va bene: conterrà lo stesso campo.
+  Il valore `revoked` non era un problema — il tipo è `status: string` e UI e server functions
+  lo gestiscono già.
 - ESLint: ~127 `@typescript-eslint/no-explicit-any` + 9 `react-hooks/exhaustive-deps`.
   Stilistici e diffusi per come Lovable genera il codice, nessun errore di correttezza.
-- Gli errori prettier `Delete ␍` che si vedono in locale sono **un artefatto della working tree
-  Windows**: in git i file sono LF (`core.autocrlf=input`), quindi il repo è a posto e non serve
-  toccare nulla. Non lanciare `prettier --write` per "sistemarli".
-- 29 dei 46 componenti in `src/components/ui/` non sono referenziati. **Lasciarli**: sono lo
-  scaffold shadcn standard e l'agent Lovable ci conta quando genera UI nuova.
+- Gli errori prettier `Delete ␍` erano **un artefatto della working tree Windows**: in git i file
+  sono LF (`core.autocrlf=input`). Chiuso con `.gitattributes` (`eol=lf`).
+  Non lanciare `prettier --write` sul repo per "sistemarli".
+- `src/components/ui/` è passato da 46 a **17 componenti**: i 29 non raggiungibili (calcolati con
+  chiusura transitiva, non solo riferimenti diretti) sono in `.tmp/old/components-ui/`.
+  Typecheck e build restano puliti. Se l'agent Lovable genera UI che ne richiede uno, lo
+  ricreerà da sé — oppure si ripesca dall'archivio.
+
+### Bug UI corretti il 2026-07-25
+
+- **Non si riusciva a creare più di un gruppo** (`category-dialog.tsx`). L'effetto di reset faceva
+  `setF({ ...f, ...initial })`, fondendo sullo **stato precedente**. Per un gruppo nuovo `initial`
+  non contiene `id`, quindi l'`id` di un gruppo aperto prima in modifica restava nel form e
+  `upsertCategory` prendeva il ramo UPDATE: riscriveva quel gruppo invece di crearne uno nuovo.
+  Corretto fondendo su una costante `EMPTY`.
+- **Utenti senza gruppi**: in pagina Utenti, `coordinator` e `volunteer` senza nessuna categoria
+  assegnata ora hanno un badge d'avviso. Senza gruppi la loro lista contatti è vuota e prima
+  nulla lo segnalava.

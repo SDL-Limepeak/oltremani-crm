@@ -138,6 +138,10 @@ un'auth riuscita lo stato resta bloccato, serve un riavvio completo di VS Code.
    e non esiste `pg_dump` per rimediare.
 2. **Le migrazioni strutturali passano dall'agent Lovable**, non da `query_database`. Se il DDL lo si
    fa a mano, lo schema divergerà dal changelog di Lovable e l'agent potrà rigenerare sopra le modifiche.
+   **Eccezione consapevole:** l'hardening RLS del 2026-07-25 è stato applicato direttamente su
+   decisione di Diego, e registrato in `supabase/migrations/202607251*` perché resti tracciato nel
+   repo. Lovable non lo conosce ⇒ dopo ogni rigenerazione dello schema rilanciare
+   `.claude/rls-tests.sql` per controllare che le policy siano ancora in piedi.
 3. Per testare qualcosa in modo distruttivo senza rischi, usa un blocco atomico che si annulla da sé:
    `DO $$ ... RAISE EXCEPTION 'ESITO >>> %', v_risultato; END $$;` — l'eccezione fa il rollback di tutto
    e il messaggio torna comunque a chi ha lanciato la query. Utile per verificare le policy RLS
