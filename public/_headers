@@ -1,12 +1,20 @@
-# DEMO: nothing here should end up in a search index.
+# ⚠️ QUESTO FILE NON HA EFFETTO SULL'HOSTING LOVABLE.
 #
-# This covers the files served straight off the platform's static handler, which never
-# reach the worker: public/*.html, images, robots.txt. Dynamic responses get the same
-# header from src/server.ts.
+# `_headers` e una convenzione di Cloudflare Pages. L'hosting di Lovable serve gli asset
+# statici per altra via, e in produzione l'header risulta assente: verificato il
+# 2026-07-25 su /test-form.html e /robots.txt, entrambi senza X-Robots-Tag.
 #
-# Nitro also generates a _headers in the build output; check after building that both the
-# rules below and its /assets/* cache rule survived.
+# Trappola: in locale nitro UNISCE questo file al proprio (la regola di cache su
+# /assets/* sopravvive), quindi la build sembra corretta. L'unico modo di accorgersene e
+# interrogare la produzione.
 #
-# Remove this file when the project goes public.
+# Lasciato in repo perche tornerebbe utile su un hosting che lo supporta, ma non contarci.
+# Cosa copre davvero cosa: .claude/architecture.md, sezione "Fuori dagli indici".
+#
+# In pratica:
+#   - le pagine del router hanno il meta robots (src/routes/__root.tsx)
+#   - test-form.html ha il suo meta robots
+#   - tutte le risposte dinamiche hanno X-Robots-Tag da src/server.ts
+#   - le immagini statiche restano coperte solo da robots.txt e da noimageindex
 /*
   X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate

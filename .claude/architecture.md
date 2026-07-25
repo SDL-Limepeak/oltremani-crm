@@ -289,14 +289,33 @@ tutti perché ognuno copre un buco degli altri:
 | `<meta name="robots">` | `src/routes/__root.tsx` | le pagine renderizzate dal router, per i crawler che leggono l'HTML |
 | `<meta name="robots">` | `public/test-form.html` | serve il suo: è un file statico e **non passa dal worker** |
 | header `X-Robots-Tag` | `src/server.ts` | **tutte** le risposte dinamiche, HTML o no: pagine, API, 404, 500. Vale anche per i crawler che ignorano i meta tag |
-| header `X-Robots-Tag` | `public/_headers` | i file statici, che su Cloudflare vengono serviti prima di arrivare al worker |
 | `Disallow` | `public/robots.txt` | wildcard più l'elenco esplicito dei crawler AI (GPTBot, ClaudeBot, CCBot, Google-Extended, PerplexityBot, Bytespider…) |
 
-Verificato in locale: header presente su `/`, `/auth`, POST all'API e pagina 404. Il solo
-caso scoperto è il preflight `OPTIONS`, dove non ha senso — i crawler non fanno preflight.
-Su `public/_headers` verificato che nitro lo **unisce** al proprio (la regola di cache su
-`/assets/*` sopravvive) invece di sovrascriverlo; l'effetto reale si può confermare solo
-dopo un deploy su Cloudflare.
+**Verificato in produzione** dopo il deploy del 2026-07-25:
+
+| Risorsa | `X-Robots-Tag` | `<meta robots>` |
+|---|---|---|
+| `/` e `/auth` | ✅ | ✅ |
+| `POST /api/public/contact` | ✅ | — |
+| `/test-form.html` | ❌ | ✅ |
+| `/robots.txt` | ❌ | — (irrilevante: sono istruzioni, non contenuto indicizzabile) |
+
+> ⚠️ **`public/_headers` non funziona su Lovable.** È una convenzione di Cloudflare Pages,
+> e l'hosting di Lovable serve gli asset statici per altra via: in produzione l'header
+> risulta assente su `/test-query.html` e su `/robots.txt`. Il file è stato lasciato in
+> repo perché tornerebbe utile su un hosting che lo supporta, ma **non dare per fatto che
+> stia proteggendo qualcosa**. In locale nitro lo unisce al proprio `_headers` (la regola
+> di cache su `/assets/*` sopravvive) — quindi la build sembra corretta, ed è proprio
+> questo che rende l'errore facile da non vedere.
+>
+> Conseguenza reale: gli unici file scoperti sono le immagini statiche
+> (`favicon.png`, `logo-*.png`), che non possono portare un meta tag. Restano coperte dal
+> `Disallow` in `robots.txt` e dal `noimageindex` sulle pagine che le richiamano. Per una
+> demo è adeguato; se un domani servisse la certezza, l'unica strada è servirle da una
+> route invece che come file statici.
+
+Il solo altro caso scoperto è il preflight `OPTIONS`, dove non ha senso: i crawler non
+fanno preflight.
 
 > Nota su `robots.txt`: `Disallow: /` impedisce la *scansione*, quindi un crawler non
 > arriva nemmeno a leggere il `noindex`. Se un URL viene linkato da fuori, Google può
