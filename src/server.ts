@@ -37,18 +37,39 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
+// DEMO: keep this project out of search engines entirely.
+//
+// The <meta name="robots"> in __root.tsx only reaches crawlers that parse HTML, and only
+// for pages rendered through the router. This header covers everything the worker serves,
+// HTML or not — API responses included — and is honoured by crawlers that ignore meta
+// tags. Static files under public/ are served by the platform before reaching the worker,
+// so they are covered by public/_headers and by their own meta tag instead.
+//
+// Remove all three when the project goes public.
+const ROBOTS_TAG = "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate";
+
+function withNoIndex(response: Response): Response {
+  // Response headers can be immutable depending on where the response came from.
+  // Re-wrapping gives a mutable copy and keeps the streaming body intact.
+  const out = new Response(response.body, response);
+  out.headers.set("x-robots-tag", ROBOTS_TAG);
+  return out;
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      return withNoIndex(await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return withNoIndex(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 };

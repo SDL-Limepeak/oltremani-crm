@@ -1,0 +1,12 @@
+# DEMO: nothing here should end up in a search index.
+#
+# This covers the files served straight off the platform's static handler, which never
+# reach the worker: public/*.html, images, robots.txt. Dynamic responses get the same
+# header from src/server.ts.
+#
+# Nitro also generates a _headers in the build output; check after building that both the
+# rules below and its /assets/* cache rule survived.
+#
+# Remove this file when the project goes public.
+/*
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate

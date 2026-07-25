@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- DEMO: out of every index. This file is served by the static handler and never
+       reaches the worker, so it needs its own tag on top of public/_headers. -->
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate" />
+  <meta name="googlebot" content="noindex, nofollow, noimageindex" />
+  <meta name="referrer" content="no-referrer" />
   <title>Test Form Pubblico · Oltremani</title>
   <style>
     :root {

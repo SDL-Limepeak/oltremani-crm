@@ -79,8 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Oltremani - Gestionale" },
-      { name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noodp" },
-      { name: "googlebot", content: "noindex, nofollow" },
+      // DEMO: out of every index until the project goes public. Paired with
+      // public/robots.txt, public/_headers and the X-Robots-Tag set in src/server.ts.
+      // `noodp` was dropped: the Open Directory Project it referred to is long gone.
+      {
+        name: "robots",
+        content: "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate",
+      },
+      { name: "googlebot", content: "noindex, nofollow, noimageindex" },
+      { name: "bingbot", content: "noindex, nofollow" },
+      { name: "referrer", content: "no-referrer" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

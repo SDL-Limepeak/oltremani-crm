@@ -184,6 +184,38 @@ Logica della RPC:
 
 La route aggiunge `unassigned` come alias di `validation` nella risposta JSON.
 
+## Fuori dagli indici — è una demo
+
+Finché il progetto non va pubblico, tutto deve restare fuori dai motori di ricerca e dai
+crawler che raccolgono materiale per l'addestramento. Sono **quattro** livelli, e servono
+tutti perché ognuno copre un buco degli altri:
+
+| Livello | File | Cosa copre |
+|---|---|---|
+| `<meta name="robots">` | `src/routes/__root.tsx` | le pagine renderizzate dal router, per i crawler che leggono l'HTML |
+| `<meta name="robots">` | `public/test-form.html` | serve il suo: è un file statico e **non passa dal worker** |
+| header `X-Robots-Tag` | `src/server.ts` | **tutte** le risposte dinamiche, HTML o no: pagine, API, 404, 500. Vale anche per i crawler che ignorano i meta tag |
+| header `X-Robots-Tag` | `public/_headers` | i file statici, che su Cloudflare vengono serviti prima di arrivare al worker |
+| `Disallow` | `public/robots.txt` | wildcard più l'elenco esplicito dei crawler AI (GPTBot, ClaudeBot, CCBot, Google-Extended, PerplexityBot, Bytespider…) |
+
+Verificato in locale: header presente su `/`, `/auth`, POST all'API e pagina 404. Il solo
+caso scoperto è il preflight `OPTIONS`, dove non ha senso — i crawler non fanno preflight.
+Su `public/_headers` verificato che nitro lo **unisce** al proprio (la regola di cache su
+`/assets/*` sopravvive) invece di sovrascriverlo; l'effetto reale si può confermare solo
+dopo un deploy su Cloudflare.
+
+> Nota su `robots.txt`: `Disallow: /` impedisce la *scansione*, quindi un crawler non
+> arriva nemmeno a leggere il `noindex`. Se un URL viene linkato da fuori, Google può
+> mostrarlo come URL nudo senza contenuto. È esattamente il motivo per cui c'è anche
+> `X-Robots-Tag`: quello viaggia con la risposta e non dipende dal fatto che il crawler
+> abbia letto la pagina.
+
+L'accesso non è comunque protetto da questi accorgimenti: chi ha il link entra. Se serve
+riservatezza vera, è `set_project_visibility` lato Lovable — ma renderebbe il link
+inutilizzabile anche per il cliente, quindi non è stato toccato.
+
+Quando si va pubblici, i punti da rimuovere sono marcati con `DEMO:` in tutti e cinque i file.
+
 ## Protezione dell'endpoint pubblico
 
 > ⚠️ **Stato attuale: l'endpoint è APERTO.** Nessuna chiave, nessuna firma, nessun rate limit.
