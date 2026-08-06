@@ -52,8 +52,8 @@ Updated 2026-08-06 · verified against the live DB and the code at commit `c22af
 
 ## Current state — 2026-08-06
 
-- Repo and `origin/main` at `c22af7a` **plus uncommitted work**: migration
-  `20260806120000`, the `tests/` suite, this KB, and the KI fixes. Not yet pushed to Lovable.
+- Repo, `origin/main` and Lovable all at `7f7d92f`, published to
+  https://oltremani-crm.lovable.app. No drift.
 - 11 tables, 30 RLS policies, 14 functions, 12 triggers. `tsc` clean, `vite build` clean,
   `bun test` 81/81.
 - Client feedback: 9 of 12 points closed, 3 open — [client-feedback.md](client-feedback.md).

@@ -1,5 +1,24 @@
 # Why it is like this
 
+## 2026-08-06, later — feedback points 5, 7, 10, then deploy
+
+Shipped as `7f7d92f` and published. Details in
+[client-feedback.md](client-feedback.md); two things worth remembering here.
+
+**A schema change broke production before the code caught up.** Revoking
+`generate_membership_number` (KI-01) and moving generation into a trigger (KI-10) is
+correct, but the deployed build still called the RPC — so "create card" failed in
+production from the moment the migration landed until the deploy. The DB and the app are
+two deploy targets with one schedule between them, and `query_database` changes the first
+instantly. **When a migration removes something the running code uses, either ship the code
+first or keep the old surface until the deploy lands.**
+
+**Labels are not values.** Point 5 asked to rename "Attivista"/"Cittadino" to
+"Dà supporto"/"Cerca supporto". The stored codes did not move: renaming them would have
+meant a CHECK migration, every historical `audit_log` snapshot, the export CSV and whatever
+the WordPress form already sends — to change a word on screen. `src/lib/selections.ts` is
+where that line lives now, and every surface reads from it.
+
 Condensed record of decisions and fixes. Read it when something looks wrong and you want to
 know whether it was already considered. Current defects are in
 [knowissues.md](knowissues.md), not here.
