@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listCategories } from "@/lib/categories.functions";
 import { searchCities } from "@/lib/cities.functions";
-import { upsertPartner } from "@/lib/partners.functions";
+import { listPartnerRoles, upsertPartner } from "@/lib/partners.functions";
+import { PARTNER_STATUS, PARTNER_TYPE } from "@/lib/selections";
 import { Save } from "lucide-react";
 
 type Props = {
@@ -18,15 +19,13 @@ type Props = {
   onSaved?: (id: string) => void;
 };
 
-const STATUS = ["new", "active", "rejected", "old"] as const;
-const STATUS_LABEL: Record<string, string> = { new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Inattivo" };
-
 export function ContactForm({ initial, onSaved }: Props) {
   const [form, setForm] = useState<any>(() => ({
     first_name: "", last_name: "", email: "", phone: "", mobile: "",
     city_id: null, raw_city: "", raw_province: "", status: "new", partner_type: "individual", notes: "",
     ...(initial ?? {}),
     category_ids: initial?.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
+    role_ids: initial?.res_partner_role_rel?.map((r: any) => r.role_id) ?? [],
   }));
   const [saving, setSaving] = useState(false);
   const [cityQuery, setCityQuery] = useState("");
@@ -47,6 +46,7 @@ export function ContactForm({ initial, onSaved }: Props) {
       return JSON.stringify({
         ...orig,
         category_ids: JSON.stringify([...(initial.res_partner_category_rel?.map((r: any) => r.category_id) ?? [])].sort()),
+        role_ids: JSON.stringify([...(initial.res_partner_role_rel?.map((r: any) => r.role_id) ?? [])].sort()),
       }) !== JSON.stringify({
         first_name: form.first_name ?? "",
         last_name: form.last_name ?? "",
@@ -58,12 +58,14 @@ export function ContactForm({ initial, onSaved }: Props) {
         partner_type: form.partner_type ?? "individual",
         notes: form.notes ?? "",
         category_ids: JSON.stringify([...form.category_ids].sort()),
+        role_ids: JSON.stringify([...form.role_ids].sort()),
       });
     }
     return !!(form.first_name || form.last_name || form.email || form.phone);
   }, [form, initial]);
 
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const { data: roles } = useQuery({ queryKey: ["partner-roles"], queryFn: () => listPartnerRoles() });
   const { data: cities } = useQuery({
     queryKey: ["cities-pick", cityQuery],
     queryFn: () => searchCities({ data: { q: cityQuery, limit: 20 } }),
@@ -75,20 +77,20 @@ export function ContactForm({ initial, onSaved }: Props) {
       setForm((f: any) => ({
         ...f, ...initial,
         category_ids: initial.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
+        role_ids: initial.res_partner_role_rel?.map((r: any) => r.role_id) ?? [],
       }));
     }
   }, [initial?.id]);
 
   function set<K extends string>(k: K, v: any) { setForm((f: any) => ({ ...f, [k]: v })); }
 
-  function toggleCat(id: string) {
+  function toggleIn(key: "category_ids" | "role_ids", id: string) {
     setForm((f: any) => ({
       ...f,
-      category_ids: f.category_ids.includes(id)
-        ? f.category_ids.filter((c: string) => c !== id)
-        : [...f.category_ids, id],
+      [key]: f[key].includes(id) ? f[key].filter((x: string) => x !== id) : [...f[key], id],
     }));
   }
+  const toggleCat = (id: string) => toggleIn("category_ids", id);
 
   async function save() {
     setSaving(true);
@@ -112,6 +114,7 @@ export function ContactForm({ initial, onSaved }: Props) {
           partner_type: form.partner_type,
           notes: form.notes || null,
           category_ids: cleanCatIds,
+          role_ids: form.role_ids,
         },
       });
       toast.success("Contatto salvato");
@@ -129,13 +132,12 @@ export function ContactForm({ initial, onSaved }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Type and status */}
         <div className="space-y-2">
+          {/* Labels come from selections.ts; the stored values stay activist/citizen. */}
           <Label>Tipo</Label>
           <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="individual">Non specificato</SelectItem>
-              <SelectItem value="activist">Attivista</SelectItem>
-              <SelectItem value="citizen">Cittadino</SelectItem>
+              {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -143,7 +145,9 @@ export function ContactForm({ initial, onSaved }: Props) {
           <Label>Stato</Label>
           <Select value={form.status} onValueChange={v => set("status", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{STATUS.map(s => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {PARTNER_STATUS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
 
@@ -209,6 +213,23 @@ export function ContactForm({ initial, onSaved }: Props) {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          {/* Multiple by design: "specialista di diritti sull'abitare e/o sulla migrazione"
+              is two entries precisely so the "e/o" is representable. */}
+          <Label>Ruoli</Label>
+          <div className="flex flex-wrap gap-2">
+            {(roles ?? []).map((r) => {
+              const active = form.role_ids.includes(r.id);
+              return (
+                <button type="button" key={r.id} onClick={() => toggleIn("role_ids", r.id)}>
+                  <Badge variant={active ? "default" : "outline"} className="rounded-full cursor-pointer">{r.name}</Badge>
+                </button>
+              );
+            })}
+            {!roles?.length && <p className="text-xs text-muted-foreground">Nessun ruolo configurato.</p>}
           </div>
         </div>
 

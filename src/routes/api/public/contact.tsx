@@ -23,8 +23,8 @@ function anonClient() {
 // choice for the demo phase (2026-07-25), taken so the sample form works with no setup.
 //
 // Before oltremani.it goes live, decide the real protection together with whoever builds
-// the WordPress form. The trade-offs are written up in .claude/architecture.md, section
-// "Protezione dell'endpoint pubblico". In short:
+// the WordPress form. The trade-offs are written up in .claude/app/flows.md, section
+// "The endpoint is OPEN — deliberately". In short:
 //   - a shared key only works if WordPress calls from PHP, server-side. From JavaScript
 //     the key ends up in the page source and protects nothing
 //   - whatever the key, it authenticates WordPress and not the person filling the form:
@@ -49,7 +49,10 @@ export const Route = createFileRoute("/api/public/contact")({
         let body: any;
         try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
-        const { first_name, last_name, email, phone, city, province, notes, privacy_consents } = body ?? {};
+        const {
+          first_name, last_name, email, phone, city, province, notes,
+          privacy_consents, role_codes, membership_number,
+        } = body ?? {};
         if (!email || typeof email !== "string") return json({ error: "email required" }, 400);
         // Phone is mandatory as of the 2026-07-25 feedback. Checked here for a clean 400,
         // and again inside the RPC because that is the boundary WordPress actually hits.
@@ -77,6 +80,16 @@ export const Route = createFileRoute("/api/public/contact")({
           p_ip_address:       ip,
           p_user_agent:       ua,
           p_notes:            typeof notes === "string" && notes.trim() ? notes : null,
+          // Role API names (res_partner_role.code), not labels. Unknown codes are ignored
+          // by the RPC rather than rejected: the WordPress form is maintained by someone
+          // else and must not start failing when this list changes.
+          p_role_codes:       Array.isArray(role_codes)
+                                ? role_codes.filter((c: unknown) => typeof c === "string" && c.trim())
+                                : null,
+          // A declared card is looked up, never reassigned — see the RPC.
+          p_membership_number: typeof membership_number === "string" && membership_number.trim()
+                                ? membership_number.trim()
+                                : null,
         });
 
         if (error) {

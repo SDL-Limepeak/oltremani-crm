@@ -9,7 +9,7 @@
 # interrogare la produzione.
 #
 # Lasciato in repo perche tornerebbe utile su un hosting che lo supporta, ma non contarci.
-# Cosa copre davvero cosa: .claude/architecture.md, sezione "Fuori dagli indici".
+# Cosa copre davvero cosa: .claude/ops/demo-noindex.md (e knowissues.md KI-12).
 #
 # In pratica:
 #   - le pagine del router hanno il meta robots (src/routes/__root.tsx)

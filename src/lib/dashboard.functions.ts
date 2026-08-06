@@ -1,17 +1,37 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const TYPE_LABEL: Record<string, string> = {
-  activist: "Attivista",
-  citizen: "Cittadino",
-  individual: "Non specificato",
-};
+import { PARTNER_TYPE_LABEL } from "@/lib/selections";
+
+const PAGE = 1000;
+
+/**
+ * PostgREST caps a response at its configured maximum (1000 rows on Supabase) and says
+ * nothing about it. An unpaged select therefore describes a subset while the headline
+ * counters — which use `count: 'exact', head: true` — stay right, so the two disagree
+ * and neither explains why. Page until a short page comes back.
+ */
+async function selectAll(build: (from: number, to: number) => any): Promise<any[]> {
+  const out: any[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await build(offset, offset + PAGE - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) return out;
+  }
+}
 
 export const getDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const year = new Date().getFullYear();
+
+    // audit_log is readable by admins only, and a plain query just returns []. Ask first,
+    // so the UI can say "administrators only" instead of showing an empty panel that
+    // reads as "nothing has happened".
+    const { data: me } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+    const canReadAudit = me?.role === "admin";
 
     const [tot, news, actives, subs, recentInbound, recentAudit, ptRaw, citizensRaw] = await Promise.all([
       supabase.from("res_partner").select("id", { count: "exact", head: true }),
@@ -22,22 +42,31 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .eq("year", year)
         .eq("status", "active"),
-      supabase
-        .from("audit_log")
-        .select("id, created_at, source, new_values_json")
-        .eq("log_type", "inbound_form")
-        .order("created_at", { ascending: false })
-        .limit(8),
-      supabase
-        .from("audit_log")
-        .select("id, created_at, action, model_name, log_type")
-        .order("created_at", { ascending: false })
-        .limit(8),
-      supabase.from("res_partner").select("partner_type, status"),
-      (supabase as any)
-        .from("res_partner")
-        .select("id, res_partner_category_rel(res_partner_category(name, category_type))")
-        .eq("partner_type", "citizen"),
+      canReadAudit
+        ? supabase
+            .from("audit_log")
+            .select("id, created_at, source, new_values_json")
+            .eq("log_type", "inbound_form")
+            .order("created_at", { ascending: false })
+            .limit(8)
+        : Promise.resolve({ data: [] as any[] }),
+      canReadAudit
+        ? supabase
+            .from("audit_log")
+            .select("id, created_at, action, model_name, log_type")
+            .order("created_at", { ascending: false })
+            .limit(8)
+        : Promise.resolve({ data: [] as any[] }),
+      selectAll((from, to) =>
+        supabase.from("res_partner").select("partner_type, status").range(from, to),
+      ).then((data) => ({ data })),
+      selectAll((from, to) =>
+        (supabase as any)
+          .from("res_partner")
+          .select("id, res_partner_category_rel(res_partner_category(name, category_type))")
+          .eq("partner_type", "citizen")
+          .range(from, to),
+      ).then((data) => ({ data })),
     ]);
 
     // Partner type × status aggregation
@@ -51,7 +80,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     }
     const partnerTypeStats = Object.entries(ptMap).map(([type, v]) => ({
       type,
-      name: TYPE_LABEL[type] ?? type,
+      name: PARTNER_TYPE_LABEL[type] ?? type,
       value: v.total,
       byStatus: v.byStatus,
     }));
@@ -80,6 +109,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       newCount: news.count ?? 0,
       activeCount: actives.count ?? 0,
       activeSubs: subs.count ?? 0,
+      canReadAudit,
       recentInbound: recentInbound.data ?? [],
       recentAudit: recentAudit.data ?? [],
       partnerTypeStats,

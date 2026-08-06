@@ -11,23 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listPartners } from "@/lib/partners.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { exportContacts } from "@/lib/exports.functions";
+import { ValidationDialog } from "@/components/validation-dialog";
+import { needsTriage } from "@/lib/partner-filters";
+import { PARTNER_STATUS, PARTNER_STATUS_LABEL, PARTNER_TYPE, PARTNER_TYPE_LABEL } from "@/lib/selections";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { Plus, Download, AlertCircle, HeartHandshake, Home, UserRound } from "lucide-react";
-
-const STATUS_LABEL: Record<string, string> = {
-  new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Inattivo",
-};
 
 const STATUS_ORDER: Record<string, number> = {
   new: 0, active: 1, rejected: 2, old: 3,
 };
 
 function PartnerTypeIcon({ type }: { type?: string }) {
+  // Tooltips read from the shared selection map, so a relabel cannot leave the icons
+  // saying "Attivista" while the dropdown says "Dà supporto".
   if (type === "activist")
-    return <span title="Attivista"><HeartHandshake className="h-4 w-4 flex-shrink-0 text-[#E8921E]" /></span>;
+    return <span title={PARTNER_TYPE_LABEL.activist}><HeartHandshake className="h-4 w-4 flex-shrink-0 text-[#E8921E]" /></span>;
   if (type === "citizen")
-    return <span title="Cittadino"><Home className="h-4 w-4 flex-shrink-0 text-[#1E3271]" /></span>;
-  return <span title="Tipo non specificato"><UserRound className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" /></span>;
+    return <span title={PARTNER_TYPE_LABEL.citizen}><Home className="h-4 w-4 flex-shrink-0 text-[#1E3271]" /></span>;
+  return <span title={PARTNER_TYPE_LABEL.individual}><UserRound className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" /></span>;
 }
 const STATUS_TONE: Record<string, string> = {
   new: "bg-blue-100 text-blue-900",
@@ -47,9 +48,13 @@ function ContactsPage() {
   const isAdmin = profile?.role === "admin";
   const [filters, setFilters] = useState<{ status?: string; partner_type?: string; category_id?: string; year?: number; has_active_sub?: boolean; search?: string }>({});
   const [exporting, setExporting] = useState(false);
+  // The contact currently being triaged, or null. Opens ValidationDialog, which is the
+  // one place that assigns the city, swaps Validation for the territorial group and
+  // flips the status in a single call.
+  const [validating, setValidating] = useState<{ id: string; city?: string; province?: string } | null>(null);
 
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["partners", filters],
     queryFn: () => listPartners({ data: filters as any }),
   });
@@ -105,19 +110,14 @@ function ContactsPage() {
             <SelectTrigger><SelectValue placeholder="Stato" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="new">Nuovo</SelectItem>
-              <SelectItem value="active">Attivo</SelectItem>
-              <SelectItem value="rejected">Rifiutato</SelectItem>
-              <SelectItem value="old">Inattivo</SelectItem>
+              {PARTNER_STATUS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filters.partner_type ?? "all"} onValueChange={v => setFilters({ ...filters, partner_type: v === "all" ? undefined : v })}>
             <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti i tipi</SelectItem>
-              <SelectItem value="activist">Attivista</SelectItem>
-              <SelectItem value="citizen">Cittadino</SelectItem>
-              <SelectItem value="individual">Non specificato</SelectItem>
+              {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filters.category_id ?? "all"} onValueChange={v => setFilters({ ...filters, category_id: v === "all" ? undefined : v })}>
@@ -173,8 +173,22 @@ function ContactsPage() {
                     <td className="p-4 text-muted-foreground">{r.email ?? "—"}</td>
                     <td className="p-4 hidden md:table-cell text-muted-foreground">{r.res_city?.name ?? r.raw_city ?? "—"}</td>
                     <td className="p-4 hidden md:table-cell">
-                      {noGroup
-                        ? <span className="inline-flex items-center gap-1 text-xs font-medium text-[#E8921E]"><AlertCircle className="h-3 w-3" />Da assegnare</span>
+                      {needsTriage(r)
+                        ? (
+                          // Clickable, not just a warning. A contact whose city did not
+                          // match sits in the Validation group until someone assigns the
+                          // right one, and doing that by hand from the edit form means
+                          // remembering to remove Validation and add the territorial
+                          // group — which is exactly what gets forgotten.
+                          <button
+                            type="button"
+                            onClick={() => setValidating({ id: r.id, city: r.raw_city ?? undefined, province: r.raw_province ?? undefined })}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-[#E8921E] hover:underline"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                            {noGroup ? "Da assegnare" : "Da validare"}
+                          </button>
+                        )
                         : (
                           <div className="flex flex-wrap gap-1">
                             {r.res_partner_category_rel.map((rel: any) => (
@@ -185,7 +199,7 @@ function ContactsPage() {
                       }
                     </td>
                     <td className="p-4">
-                      <Badge className={`rounded-full ${STATUS_TONE[r.status] ?? ""}`}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+                      <Badge className={`rounded-full ${STATUS_TONE[r.status] ?? ""}`}>{PARTNER_STATUS_LABEL[r.status] ?? r.status}</Badge>
                     </td>
                   </tr>
                 );
@@ -194,6 +208,21 @@ function ContactsPage() {
           </table>
         </div>
       </Card>
+
+      {validating && (
+        <ValidationDialog
+          open
+          onOpenChange={(o) => !o && setValidating(null)}
+          partnerId={validating.id}
+          defaultCity={validating.city}
+          defaultProvince={validating.province}
+          onSaved={() => {
+            setValidating(null);
+            toast.success("Contatto validato");
+            refetch();
+          }}
+        />
+      )}
     </AppShell>
   );
 }

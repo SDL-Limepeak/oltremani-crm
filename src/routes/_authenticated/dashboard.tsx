@@ -176,11 +176,17 @@ function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent activity */}
+      {/* Recent activity — sourced from audit_log, which only admins can read.
+          Without the explicit notice below these two panels look like "nothing has
+          happened" to everybody else, including superusers. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <Card className="p-6 rounded-2xl border-0 shadow-sm">
           <h3 className="font-serif text-lg mb-4">Form ricevuti di recente</h3>
-          {data?.recentInbound?.length ? (
+          {data && !data.canReadAudit ? (
+            <p className="text-muted-foreground text-sm">
+              Visibile solo agli amministratori.
+            </p>
+          ) : data?.recentInbound?.length ? (
             <ul className="space-y-3">
               {data.recentInbound.map((l: any) => (
                 <li key={l.id} className="text-sm border-b border-border/40 pb-2 last:border-0">
@@ -199,7 +205,11 @@ function DashboardPage() {
 
         <Card className="p-6 rounded-2xl border-0 shadow-sm">
           <h3 className="font-serif text-lg mb-4">Attività recente</h3>
-          {data?.recentAudit?.length ? (
+          {data && !data.canReadAudit ? (
+            <p className="text-muted-foreground text-sm">
+              Visibile solo agli amministratori.
+            </p>
+          ) : data?.recentAudit?.length ? (
             <ul className="space-y-3">
               {data.recentAudit.map((l: any) => (
                 <li key={l.id} className="text-sm border-b border-border/40 pb-2 last:border-0 flex justify-between">

@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { getPartner, upsertPartner } from "@/lib/partners.functions";
+import { getPartner, listPartnerRoles, upsertPartner } from "@/lib/partners.functions";
+import { PARTNER_STATUS, PARTNER_TYPE } from "@/lib/selections";
 import { revokeSubscription } from "@/lib/subscriptions.functions";
 import { listAudit } from "@/lib/audit.functions";
 import { listCategories } from "@/lib/categories.functions";
@@ -30,10 +31,6 @@ export const Route = createFileRoute("/_authenticated/contacts/$id")({
   component: ContactDetail,
 });
 
-const STATUS = ["new", "active", "rejected", "old"] as const;
-const STATUS_LABEL: Record<string, string> = {
-  new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Inattivo",
-};
 const CHANNEL_LABEL: Record<string, string> = {
   telefono: "Telefono", email: "Email", cartaceo: "Cartaceo",
   di_persona: "Di persona", web: "Web", altro: "Altro",
@@ -154,6 +151,7 @@ function ContactDetail() {
     enabled: isAdmin,
   });
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const { data: roles } = useQuery({ queryKey: ["partner-roles"], queryFn: () => listPartnerRoles() });
   const { data: cityResults } = useQuery({
     queryKey: ["cities-pick", cityQuery],
     queryFn: () => searchCities({ data: { q: cityQuery, limit: 20 } }),
@@ -175,6 +173,7 @@ function ContactDetail() {
       partner_type: p.partner_type ?? "individual",
       notes: p.notes ?? "",
       category_ids: p.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
+      role_ids: p.res_partner_role_rel?.map((r: any) => r.role_id) ?? [],
     };
     setForm(loaded);
     setInitialForm(loaded);
@@ -207,6 +206,7 @@ function ContactDetail() {
           raw_province: form.raw_province || null,
           status: form.status,
           partner_type: form.partner_type,
+          role_ids: form.role_ids,
           notes: form.notes || null,
           category_ids: cleanCatIds,
         },
@@ -283,6 +283,29 @@ function ContactDetail() {
                       );
                     })}
                   </div>
+
+                  {/* Operational roles. Multiple on purpose: the client's
+                      "specialista di diritti sull'abitare e/o sulla migrazione" is two
+                      separate entries so the "e/o" can actually be expressed. */}
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-5 mb-2">Ruoli</p>
+                  <div className="flex flex-wrap gap-2 mb-1">
+                    {(roles ?? []).length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nessun ruolo configurato.</p>
+                    )}
+                    {(roles ?? []).map((r) => {
+                      const active = form.role_ids?.includes(r.id);
+                      return (
+                        <button type="button" key={r.id}
+                          onClick={() => set("role_ids", active
+                            ? form.role_ids.filter((x: string) => x !== r.id)
+                            : [...(form.role_ids ?? []), r.id]
+                          )}
+                        >
+                          <Badge variant={active ? "default" : "outline"} className="rounded-full cursor-pointer">{r.name}</Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
                   {saveBtn}
                 </div>
               )}
@@ -299,9 +322,7 @@ function ContactDetail() {
                       <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="individual">Non specificato</SelectItem>
-                          <SelectItem value="activist">Attivista</SelectItem>
-                          <SelectItem value="citizen">Cittadino</SelectItem>
+                          {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -309,7 +330,7 @@ function ContactDetail() {
                       <Label>Stato</Label>
                       <Select value={form.status} onValueChange={v => set("status", v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{STATUS.map(s => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent>
+                        <SelectContent>{PARTNER_STATUS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
 

@@ -4,9 +4,9 @@
 -- Applied 2026-07-25 via Lovable MCP (query_database), NOT through the Lovable
 -- agent: recorded here so it stays tracked in the repo. If the agent regenerates
 -- the schema, re-check that these policies are still in place by running the
--- probes in .claude/rls-tests.sql.
+-- suite in tests/ (bun test).
 --
--- Context and exploitability proofs: .claude/architecture.md
+-- Context and exploitability proofs: .claude/history.md
 -- ============================================================================
 
 

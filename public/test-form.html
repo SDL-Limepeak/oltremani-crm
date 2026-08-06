@@ -161,6 +161,43 @@
         </div>
 
         <div class="section">
+          <!-- Roles. The codes below are the API names from res_partner_role.code; the
+               visible text is res_partner_role.name. This static page hardcodes them, so
+               if the client adds a role in the CRM it will not appear here until someone
+               updates this list — acceptable for a demo page, but the real WordPress form
+               should read them from an endpoint. -->
+          <div class="privacy-group">
+            <label>Cosa ti piacerebbe fare? <small>(puoi scegliere più di una voce)</small></label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="famiglia_ospitante" />
+              <span>Famiglia ospitante</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="specialista_abitare" />
+              <span>Specialista diritti sull'abitare</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="specialista_migrazione" />
+              <span>Specialista diritti sulla migrazione</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="membro_semplice" />
+              <span>Membro semplice della comunità</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="bussola" />
+              <span>Bussola</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Numero tessera <small>(solo se sei già socio)</small></label>
+          <input name="membership_number" placeholder="Es. 2600001" />
+          <small>Lascia vuoto se non hai ancora una tessera: te ne verrà assegnata una.</small>
+        </div>
+
+        <div class="section">
           <label>Note / messaggio</label>
           <textarea name="notes" rows="3" placeholder="Raccontaci qualcosa di te, o cosa ti piacerebbe fare"></textarea>
         </div>
@@ -405,6 +442,9 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
     city:       f.city.value.trim()       || null,
     province:   f.province.value          || null,
     notes:      f.notes.value.trim()      || null,
+    // API names, not labels — see res_partner_role.code.
+    role_codes: [...f.querySelectorAll('input[name="role"]:checked')].map(i => i.value),
+    membership_number: f.membership_number.value.trim() || null,
     privacy_consents: [
       { consent_type: "privacy_policy", accepted: f.privacy_policy.checked, version: "1.0" },
       { consent_type: "newsletter",     accepted: f.newsletter.checked,     version: "1.0" },
@@ -435,12 +475,23 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
   const provRow = PROVINCE.find(p => p[0] === body.province);
   const expectedGroup = provRow ? provRow[3] : "—";
 
+  // A declared card is never reassigned: membership_number is UNIQUE, so honouring the
+  // claim would let anyone take over another member's card by typing their number.
+  const MEMBERSHIP_MSG = {
+    confirmed:    '<span class="ok-badge">✅ Tessera confermata</span>',
+    not_found:    '<span class="val-badge">⚠️ Numero non trovato — ti registriamo comunque, la tessera verrà corretta o riassegnata</span>',
+    mismatch:     '<span class="val-badge">⚠️ Il numero risulta intestato a un altro socio — non riassegnato, verrà verificato</span>',
+    not_provided: '<span style="color:var(--muted)">— non fornito</span>',
+  };
+
   if (ok) {
     bodyDiv.innerHTML = `
       <div class="result-ok">
         <h3>✅ Contatto creato / aggiornato</h3>
         <div class="kv"><strong>partner_id</strong><span style="font-family:monospace;font-size:12px">${data.partner_id}</span></div>
-        <div class="kv"><strong>Validazione manuale</strong><span>${data.validation ? '<span class="val-badge">⚠️ Sì — città non abbinata</span>' : '<span class="ok-badge">✅ No — città abbinata</span>'}</span></div>
+        <div class="kv"><strong>Validazione manuale</strong><span>${data.validation ? '<span class="val-badge">⚠️ Sì — serve intervento manuale</span>' : '<span class="ok-badge">✅ No — città abbinata</span>'}</span></div>
+        <div class="kv"><strong>Tessera dichiarata</strong><span>${MEMBERSHIP_MSG[data.membership_status] || data.membership_status || '—'}</span></div>
+        <div class="kv"><strong>Ruoli inviati</strong><span>${body.role_codes.length ? body.role_codes.join(", ") : "—"}</span></div>
         <div class="kv"><strong>Gruppo atteso</strong><span><span class="grp-tag ${GRP_CLASS[expectedGroup] || ''}">${expectedGroup}</span></span></div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Risposta JSON completa:</p>

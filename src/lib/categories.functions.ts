@@ -111,7 +111,31 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("res_partner_category").delete().eq("id", data.id);
+    const { supabase, userId } = context;
+
+    // Read before deleting: the row is gone afterwards and this is the more
+    // consequential half of the operation. Deleting a group cascades to
+    // res_partner_category_rel, so every contact in it drops out of whoever's
+    // perimeter it was in — and until now that left no trace at all.
+    const { data: old } = await supabase
+      .from("res_partner_category")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    const { data: deleted, error } = await supabase
+      .from("res_partner_category")
+      .delete()
+      .eq("id", data.id)
+      .select();
     if (error) throw error;
+    // RLS can filter the DELETE down to zero rows and still answer success, so an
+    // empty result means "not allowed", not "already gone".
+    if (!deleted?.length) throw new Error("Gruppo non eliminato: non autorizzato o inesistente");
+
+    await supabase.from("audit_log").insert({
+      log_type: "record_change", action: "delete", model_name: "res_partner_category",
+      record_id: data.id, old_values_json: old, changed_by_user_id: userId, source: "ui",
+    });
     return { ok: true };
   });

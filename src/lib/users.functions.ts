@@ -84,8 +84,25 @@ export const upsertUser = createServerFn({ method: "POST" })
         .upsert({ id: uid, email: data.email, name: data.name, role: data.role, status: data.status });
     } else {
       // protect: cannot demote admin or promote to admin via this endpoint
-      const { data: old } = await supabaseAdmin.from("res_users").select("role").eq("id", uid).maybeSingle();
+      const { data: old } = await supabaseAdmin
+        .from("res_users")
+        .select("role, email")
+        .eq("id", uid)
+        .maybeSingle();
       if (old?.role === "admin") throw new Error("Gli amministratori non possono essere modificati");
+
+      // The login address lives in auth.users and the displayed one in res_users.
+      // Writing only the second used to leave the two out of step: the CRM showed the
+      // new address while the person kept signing in with the old one. Change the auth
+      // side first — if it fails, the profile is still the truth.
+      if (old && old.email !== data.email) {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(uid, {
+          email: data.email,
+          email_confirm: true,
+        });
+        if (authErr) throw authErr;
+      }
+
       await supabaseAdmin
         .from("res_users")
         .update({ name: data.name, email: data.email, role: data.role, status: data.status })

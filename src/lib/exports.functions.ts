@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { applyPartnerFilters } from "@/lib/partner-filters";
 
 // Same filter shape as listPartners, minus limit/offset: an export is meant to return
 // everything that matches, not one page of it.
@@ -80,35 +81,10 @@ export const exportContacts = createServerFn({ method: "POST" })
       if (!page || page.length < PAGE) break;
     }
 
-    // Filters PostgREST cannot express on a nested relation, applied here to stay
-    // consistent with what the contacts list shows.
-    let filtered = rows;
-    if (data.category_id) {
-      filtered = filtered.filter((r: any) =>
-        r.res_partner_category_rel?.some((rel: any) => rel.category_id === data.category_id),
-      );
-    }
-    if (data.province_code) {
-      filtered = filtered.filter(
-        (r: any) =>
-          r.res_city?.province_code === data.province_code ||
-          r.raw_province === data.province_code,
-      );
-    }
-    if (data.year) {
-      filtered = filtered.filter((r: any) =>
-        r.membership_subscription?.some((s: any) => s.year === data.year),
-      );
-    }
-    if (data.has_active_sub !== undefined) {
-      const y = data.year ?? new Date().getFullYear();
-      filtered = filtered.filter((r: any) => {
-        const has = r.membership_subscription?.some(
-          (s: any) => s.year === y && s.status === "active",
-        );
-        return data.has_active_sub ? has : !has;
-      });
-    }
+    // Filters PostgREST cannot express on a nested relation. Shared with listPartners
+    // through partner-filters.ts: an export that disagreed with the on-screen list
+    // would be worse than either being wrong on its own.
+    const filtered = applyPartnerFilters(rows, data);
 
     const body = filtered.map((r: any) =>
       [

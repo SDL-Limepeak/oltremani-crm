@@ -33,12 +33,16 @@ dist-ssr
 
 # Claude Code
 # La cartella .claude/ È versionata: contiene la knowledge base del progetto
-# (branding.md, architecture.md, db-access.md). Fuori solo lo stato locale.
+# (README.md come indice, db/, app/, ui/, ops/). Fuori solo lo stato locale.
 .claude/settings.local.json
 .mcp.json
 
 # Lock file estraneo: il progetto usa bun (bun.lock)
 package-lock.json
+
+# Credenziali dei profili di test: account reali sul DB di produzione.
+# Il template versionato è tests/credentials.example.json
+tests/credentials.json
 
 # Temporary
 .tmp/

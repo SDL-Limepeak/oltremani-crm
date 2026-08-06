@@ -5,7 +5,7 @@
 --
 -- Every change below was tested in a rolled-back transaction before being applied,
 -- because two of the scanner's suggested remediations would have broken the app.
--- See .claude/architecture.md, "Scan di sicurezza Lovable".
+-- See .claude/history.md, "Lovable security scan".
 -- ============================================================================
 
 

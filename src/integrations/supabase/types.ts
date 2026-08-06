@@ -200,6 +200,69 @@ export type Database = {
           },
         ]
       }
+      res_partner_role: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      res_partner_role_rel: {
+        Row: {
+          created_at: string
+          partner_id: string
+          role_id: string
+        }
+        Insert: {
+          created_at?: string
+          partner_id: string
+          role_id: string
+        }
+        Update: {
+          created_at?: string
+          partner_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "res_partner_role_rel_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "res_partner"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "res_partner_role_rel_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "res_partner_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       res_partner: {
         Row: {
           city_id: string | null
@@ -451,6 +514,23 @@ export type Database = {
       has_role: { Args: { _role: string; _uid: string }; Returns: boolean }
       is_admin_or_super: { Args: { _uid: string }; Returns: boolean }
       visible_category_ids: { Args: { _uid: string }; Returns: string[] }
+      submit_public_contact: {
+        Args: {
+          p_first_name?: string | null
+          p_last_name?: string | null
+          p_email?: string | null
+          p_phone?: string | null
+          p_city?: string | null
+          p_province?: string | null
+          p_privacy_consents?: Json | null
+          p_ip_address?: string | null
+          p_user_agent?: string | null
+          p_notes?: string | null
+          p_role_codes?: string[] | null
+          p_membership_number?: string | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
