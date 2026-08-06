@@ -20,15 +20,15 @@ export type Selection = { value: string; label: string };
 /**
  * Direction of the relationship with the association.
  *
- * Renamed on 2026-08-06 at the client's request. Stored values unchanged:
- *   activist → "Dà supporto"    (someone who helps)
- *   citizen  → "Cerca supporto" (someone who needs help)
+ * Relabelled 2026-08-06 at the client's request; direction confirmed by them the same day
+ * — "activist gives support, citizen receives it". Stored values unchanged:
+ *   activist → "Dà supporto"
+ *   citizen  → "Cerca supporto"
  *
- * ⚠️ The mapping is the semantic one, not the positional one. The client's email listed
- * "cerca supporto e da supporto" in that order right after "attivista e cittadino", which
- * read literally would pair activist→seeks. That is backwards: an activist is the one
- * giving support. Confirm at the next call — it is a label swap either way, but it flips
- * the meaning of every existing contact.
+ * The original email listed "cerca supporto e da supporto" straight after "attivista e
+ * cittadino", which read positionally would have paired them the other way round. It was
+ * worth asking: the swap is one word on screen and reverses the meaning of every contact
+ * already in the database. Pinned by tests/selections.test.ts.
  */
 export const PARTNER_TYPE: Selection[] = [
   { value: "individual", label: "Non specificato" },

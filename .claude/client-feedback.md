@@ -41,11 +41,11 @@ word on screen. `selections.ts` is where that line is drawn, and every screen no
 labels from it (dropdowns, filters, the type icons' tooltips, the dashboard chart), so a
 relabel cannot leave one surface saying "Attivista" while another says "Dà supporto".
 
-> ⚠️ **Confirm the direction at the next call.** The email listed "cerca supporto e da
-> supporto" right after "attivista e cittadino", which read positionally would pair
-> *activist → cerca supporto*. That is backwards — an activist is the one giving support —
-> so the mapping above is the semantic one. It is a label swap either way, but it flips the
-> meaning of every existing contact.
+**Direction confirmed by the client on 2026-08-06:** activist gives support, citizen
+receives it. Worth having asked — the original email listed "cerca supporto e da supporto"
+straight after "attivista e cittadino", which read positionally would have paired them the
+other way round, reversing the meaning of every contact already in the database.
+`tests/selections.test.ts` now pins both the codes and the direction.
 
 ## 7 — Roles
 
