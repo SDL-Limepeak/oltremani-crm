@@ -112,8 +112,8 @@
     <path d="M0 28 C0 12.536 10.745 0 24 0 C37.255 0 48 12.536 48 28 L36 28 C36 19.163 30.627 12 24 12 C17.373 12 12 19.163 12 28 Z" fill="#E8921E"/>
   </svg>
   <div>
-    <h1>Form pubblico — Test di integrazione <span class="badge-dev">DEV</span></h1>
-    <p>Simula il form di adesione di oltremani.it: crea il contatto direttamente nel database del gestionale</p>
+    <h1>Modulo di adesione — anteprima <span class="badge-dev">DEMO</span></h1>
+    <p>È il form che finirà su oltremani.it. Compilalo pure: il contatto entra davvero nel gestionale, così lo verifichi subito in Contatti.</p>
   </div>
 </div>
 
@@ -235,7 +235,7 @@
 
     <!-- Result panel -->
     <div id="result" class="card" style="margin-top:16px">
-      <div class="card-title">📬 Risposta API</div>
+      <div class="card-title">📬 Esito dell'invio</div>
       <div id="result-body"></div>
     </div>
   </div>
@@ -243,11 +243,11 @@
   <!-- Sidebar: province map -->
   <div>
     <div class="card">
-      <div class="card-title">🗺️ Routing provincia → gruppo</div>
+      <div class="card-title">🗺️ Quale gruppo riceve il contatto</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-        Seleziona una provincia nel form — il campo città si auto-compila e la provincia viene abbinata al gruppo territoriale.
+        Scegli una provincia nel form: la città si compila da sola e il contatto finisce nel gruppo indicato qui. Serve per sapere cosa aspettarsi prima di inviare.
       </p>
-      <details open>
+      <details>
         <summary>Tutte le province (107)</summary>
         <div style="overflow-x:auto;margin-top:8px">
           <table class="prov-table" id="prov-table">
@@ -494,8 +494,10 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
         <div class="kv"><strong>Ruoli inviati</strong><span>${body.role_codes.length ? body.role_codes.join(", ") : "—"}</span></div>
         <div class="kv"><strong>Gruppo atteso</strong><span><span class="grp-tag ${GRP_CLASS[expectedGroup] || ''}">${expectedGroup}</span></span></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Risposta JSON completa:</p>
-      <pre>${JSON.stringify(data, null, 2)}</pre>
+      <details>
+        <summary style="font-size:12px;color:var(--muted);cursor:pointer">Mostra dettagli tecnici</summary>
+        <pre style="margin-top:8px">${JSON.stringify(data, null, 2)}</pre>
+      </details>
       <p style="font-size:12px;color:var(--muted);margin-top:10px">
         👉 Verifica il contatto nel <a href="/contacts" target="_blank" style="color:var(--orange)">gestionale → Contatti</a>
         ${data.validation ? '· Il contatto ha il tag <strong>Validation</strong> — assegna il gruppo manualmente' : ''}
