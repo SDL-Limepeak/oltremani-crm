@@ -43,6 +43,7 @@ package-lock.json
 # Credenziali dei profili di test: account reali sul DB di produzione.
 # Il template versionato è tests/credentials.example.json
 tests/credentials.json
+tests/UTENTI-DI-TEST.md
 
 # Temporary
 .tmp/
