@@ -23,10 +23,21 @@ bun run dev                     # needed only by public-form.test.ts — serves 
 |---|---|
 | `rls-matrix.test.ts` | the permission matrix: what each of the four roles can see and do |
 | `regressions.test.ts` | one test per entry in [knowissues.md](../.claude/knowissues.md), plus the 2026-07-25 hardening |
+| `roles-and-membership.test.ts` | client feedback 7 and 10: the role picklist and its RLS, and all four membership-claim branches over real HTTP |
+| `selections.test.ts` | the partner_type codes are frozen and the labels say what the client confirmed; cross-checked against the live CHECK constraints |
 | `partner-filters.test.ts` | pure unit tests for the contact filters (KI-05) and the triage predicate (KI-15) — no database |
 | `public-form.test.ts` | the unauthenticated endpoint, HTTP → route → RPC → DB. Skips itself if no server answers |
 | `helpers/pgrest.ts` | PostgREST driver. **Use it; do not hand-roll fetches** — see the trap below |
 | `helpers/env.ts` | `.env` + credentials + the fixture UUIDs |
+
+Two files here are **gitignored** because they hold working passwords for accounts on the
+production database, so a fresh clone will not have them:
+
+- `credentials.json` — machine-readable, the suite refuses to start without it. Template in
+  `credentials.example.json`, accounts recreated with the SQL further down.
+- `UTENTI-DI-TEST.md` — the human version: who logs in, what each role should see, what to
+  click. Written in Italian because it is handed to the client. Regenerate it from the
+  account table below if it goes missing.
 
 Tests go through **PostgREST with a real JWT**, not through the app's server functions.
 That is on purpose: PostgREST is publicly reachable, so anything RLS permits, a user can

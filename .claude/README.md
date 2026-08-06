@@ -52,13 +52,15 @@ Updated 2026-08-06 · verified against the live DB and the code at commit `c22af
 
 ## Current state — 2026-08-06
 
-- Repo, `origin/main` and Lovable are in sync. The published build at
-  https://oltremani-crm.lovable.app is `7f7d92f`; later commits are docs-only and do
-  not need a redeploy. Check with `mcp__lovable__get_project.latest_commit_sha`.
+- Repo, `origin/main` and Lovable in sync; published to https://oltremani-crm.lovable.app.
+  HEAD and the published build can differ by a docs-only commit — check the real one with
+  `mcp__lovable__get_project.latest_commit_sha`.
 - 11 tables, 30 RLS policies, 14 functions, 12 triggers. `tsc` clean, `vite build` clean,
-  `bun test` 81/81.
-- Client feedback: 9 of 12 points closed, 3 open — [client-feedback.md](client-feedback.md).
-- Row counts: partner 8 · category 10 · city 107 · users 2 (+5 test) · sub 6 · consent 34 · audit ~90.
+  `bun test` 91/91 across six files.
+- Client feedback: 9 of 12 points closed, 3 waiting on the client —
+  [client-feedback.md](client-feedback.md).
+- Row counts: partner 8 · category 10 · city 107 · role 5 · users 2 (+5 test) · sub 6 ·
+  consent 34 · audit ~180 (the suite appends `inbound_form` rows it cannot delete).
 - All ten migrations applied. See [db/migrations.md](db/migrations.md).
 - **No known authorization holes.** Twelve of fifteen findings closed on 2026-08-06; the
   three left are a maintenance note (KI-08), a hosting limitation (KI-12) and an open

@@ -96,6 +96,15 @@ silently moving the card.
 
 ---
 
+## Sent to the client 2026-08-06
+
+Diego emailed Dario the same day: what shipped, the four test logins (admin excluded —
+Diego is the only admin), the form link, and the three open points. Draft kept at
+`.tmp/email-dario-2026-08-06.md`, out of git because it carries working passwords.
+
+The three items below are therefore **waiting on the client**, not on us. Nothing is
+blocked on our side.
+
 ## Still open
 
 ### 1 + 2 — the hierarchy, and an ambiguity worth resolving first

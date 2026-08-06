@@ -1,5 +1,19 @@
 # Why it is like this
 
+## 2026-08-06, closing — handed to the client
+
+Label direction confirmed by the client (activist gives, citizen receives) and pinned in
+`tests/selections.test.ts`, which also cross-checks the codes against the live CHECK
+constraints so a rename fails in tests instead of in production. 91 tests.
+
+The public form was still dressed as a dev harness — "Test di integrazione DEV" over a
+panel called "Risposta API" and a raw JSON dump — which is fine for us and wrong for the
+person being asked to try it. Renamed, province table collapsed, JSON moved behind a
+disclosure. No structural change: the readable summary was always the useful part.
+
+Emailed to Dario with four test logins (admin excluded, Diego is the only one). The three
+remaining feedback points are now waiting on him, not on us.
+
 ## 2026-08-06, later — feedback points 5, 7, 10, then deploy
 
 Shipped as `7f7d92f` and published. Details in
