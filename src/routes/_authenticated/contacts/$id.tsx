@@ -11,18 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { getPartner, listPartnerRoles, upsertPartner } from "@/lib/partners.functions";
-import { PARTNER_STATUS, PARTNER_TYPE } from "@/lib/selections";
-import { revokeSubscription } from "@/lib/subscriptions.functions";
+import { deletePartner, getPartner, listPartnerRoles, partnerDeletionImpact, upsertPartner } from "@/lib/partners.functions";
+import { PARTNER_STATUS, SUBSCRIPTION_STATUS_LABEL } from "@/lib/selections";
+import { membershipNumberUsage, revokeSubscription } from "@/lib/subscriptions.functions";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { listAudit } from "@/lib/audit.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { searchCities } from "@/lib/cities.functions";
 import { SubscriptionDialog } from "@/components/subscription-dialog";
 import { ConsentDialog } from "@/components/consent-dialog";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  ChevronDown, BadgeCheck, Plus, HeartHandshake, Home, UserRound,
+  ChevronDown, BadgeCheck, Plus,
   MoreHorizontal, FolderTree, User, CreditCard, FileText, ScrollText, Save,
+  AlertTriangle, Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/contacts/$id")({
@@ -54,12 +60,6 @@ function diffJson(o: any, n: any) {
     if (o[k] === n[k]) return [];
     return [{ field: FIELD_LABEL[k] ?? k, old: o[k], new: n[k] }];
   });
-}
-
-function PartnerTypeIcon({ type }: { type?: string }) {
-  if (type === "activist") return <span title="Attivista"><HeartHandshake className="h-5 w-5 text-[#E8921E]" /></span>;
-  if (type === "citizen") return <span title="Cittadino"><Home className="h-5 w-5 text-[#1E3271]" /></span>;
-  return <span title="Non specificato"><UserRound className="h-5 w-5 text-muted-foreground/40" /></span>;
 }
 
 function SectionHeader({
@@ -184,7 +184,27 @@ function ContactDetail() {
   );
   const validationId = (cats ?? []).find((c: any) => c.name.toLowerCase() === "validation")?.id;
 
+  // Cards this save is about to deactivate, or [] when it is not that kind of save. Only
+  // the transition into "Inattivo" counts: re-saving an already-inactive contact must not
+  // nag, and must not reach back for a card somebody reactivated on purpose since. The
+  // server applies the same condition in upsertPartner — this is the warning, not the rule.
+  const cardsAboutToClose: any[] =
+    form.status === "old" && p?.status !== "old"
+      ? (p?.membership_subscription ?? []).filter((c: any) => c.status === "active")
+      : [];
+
+  function requestSave() {
+    // Asked before saving, not after: deactivating a card is not something the form
+    // undoes, and the number stays spent either way.
+    if (cardsAboutToClose.length) {
+      setConfirmInactive(true);
+      return;
+    }
+    void save();
+  }
+
   async function save() {
+    setConfirmInactive(false);
     const cleanCatIds = validationId
       ? form.category_ids.filter((x: string) => x !== validationId)
       : form.category_ids;
@@ -205,7 +225,6 @@ function ContactDetail() {
           raw_city: form.raw_city || null,
           raw_province: form.raw_province || null,
           status: form.status,
-          partner_type: form.partner_type,
           role_ids: form.role_ids,
           notes: form.notes || null,
           category_ids: cleanCatIds,
@@ -229,6 +248,20 @@ function ContactDetail() {
   }
 
   const hasActiveSub = p?.membership_subscription?.some((s: any) => s.year === year && s.status === "active");
+
+  // Numbers are written by hand and no longer unique, so the record has to say when one
+  // landed on two cards. The list is register-wide; the second warning is local.
+  const { data: numberUsage } = useQuery({
+    queryKey: ["membership-number-usage"],
+    queryFn: () => membershipNumberUsage(),
+  });
+  const duplicatedNumbers = numberUsage?.duplicated ?? [];
+
+  // More than one live card for the same year is not supposed to happen: the card is the
+  // year's membership, so two of them means one is a leftover somebody forgot to revoke.
+  const activeThisYear = (p?.membership_subscription ?? []).filter(
+    (s: any) => s.year === year && s.status === "active",
+  ).length;
   const partnerName = p?.display_name || `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.trim() || "Contatto";
   const headerMeta = [p?.email, p?.phone].filter(Boolean).join(" · ");
   const sortedSubs = [...(p?.membership_subscription ?? [])].sort((a: any, b: any) => b.year - a.year);
@@ -236,9 +269,37 @@ function ContactDetail() {
     .filter((c: any) => c.consent_type === "privacy_policy")
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  // Removing a contact for good is admin/superuser only — the partner_delete policy says
+  // the same in the database. Everyone else edits; nobody else deletes.
+  const canDelete = profile?.role === "admin" || profile?.role === "superuser";
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmInactive, setConfirmInactive] = useState(false);
+  const navigate = useNavigate();
+
+  // Asked for only when the dialog opens: it is a second round-trip, and the counts have
+  // to be the ones at the moment of asking, not from when the page was loaded.
+  const { data: impact, isLoading: impactLoading } = useQuery({
+    queryKey: ["partner-deletion-impact", id],
+    queryFn: () => partnerDeletionImpact({ data: { id: id! } }),
+    enabled: confirmDelete && !!id,
+  });
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deletePartner({ data: { id: id! } });
+      toast.success("Contatto eliminato");
+      navigate({ to: "/contacts" });
+    } catch (e: any) {
+      toast.error(e.message ?? "Errore");
+      setDeleting(false);
+    }
+  }
+
   const saveBtn = (
     <div className="flex justify-end pt-4">
-      <Button size="sm" onClick={save} disabled={!isDirty || saving}>
+      <Button size="sm" onClick={requestSave} disabled={!isDirty || saving}>
         <Save className="h-4 w-4 mr-1.5" />{saving ? "Salvataggio…" : "Salva"}
       </Button>
     </div>
@@ -248,12 +309,19 @@ function ContactDetail() {
     <AppShell
       title={
         <span className="flex items-center gap-2 flex-wrap">
-          <PartnerTypeIcon type={p?.partner_type} />
           <span>{partnerName}</span>
           {headerMeta && (
             <span className="text-sm font-normal text-muted-foreground font-sans">({headerMeta})</span>
           )}
         </span>
+      }
+      actions={
+        canDelete ? (
+          <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Elimina contatto
+          </Button>
+        ) : null
       }
     >
       <div>
@@ -317,16 +385,8 @@ function ContactDetail() {
               {open.anagrafica && (
                 <div className="px-5 pb-5 pt-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Tipo</Label>
-                      <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
+                    {/* "Tipo" was dropped on 2026-09-17; Ruoli says the same thing. */}
+                    <div className="space-y-2 md:col-span-2">
                       <Label>Stato</Label>
                       <Select value={form.status} onValueChange={v => set("status", v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -436,15 +496,31 @@ function ContactDetail() {
                               <td className="py-3 pr-4 text-muted-foreground text-xs">{s.start_date ?? "—"}</td>
                               <td className="py-3 pr-4 text-muted-foreground text-xs">{s.end_date ?? "—"}</td>
                               <td className="py-3 pr-4">
-                                <Badge variant="secondary" className={`rounded-full w-24 justify-center text-xs font-semibold tracking-wide ${
-                                  s.status === "active"
-                                    ? "bg-emerald-100 text-emerald-900 border-emerald-200"
-                                    : s.status === "revoked"
-                                    ? "bg-destructive/10 text-destructive border-destructive/20"
-                                    : "bg-muted text-muted-foreground"
-                                }`}>
-                                  {s.status === "active" ? "TESSERATO" : s.status === "revoked" ? "REVOCATO" : "INATTIVO"}
-                                </Badge>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="secondary" className={`rounded-full w-24 justify-center text-xs font-semibold tracking-wide ${
+                                    s.status === "active"
+                                      ? "bg-emerald-100 text-emerald-900 border-emerald-200"
+                                      : s.status === "revoked" || s.status === "expired"
+                                      ? "bg-destructive/10 text-destructive border-destructive/20"
+                                      : "bg-muted text-muted-foreground"
+                                  }`}>
+                                    {s.status === "active"
+                                      ? "TESSERATO"
+                                      : (SUBSCRIPTION_STATUS_LABEL[s.status] ?? s.status).toUpperCase()}
+                                  </Badge>
+                                  {/* Both warnings sit next to the status because that is
+                                      where someone looks to decide whether the card counts. */}
+                                  {s.membership_number && duplicatedNumbers.includes(s.membership_number) && (
+                                    <span title={`Il numero ${s.membership_number} è usato da più di una tessera. Vanno corretti a mano: il numero non è più unico perché le tessere si compilano a mano.`}>
+                                      <AlertTriangle className="h-4 w-4 text-[#E8921E]" />
+                                    </span>
+                                  )}
+                                  {s.status === "active" && s.year === year && activeThisYear > 1 && (
+                                    <span title={`Questo contatto ha ${activeThisYear} tessere attive per il ${year}. Se ne può avere una sola: revoca quelle che non valgono più.`}>
+                                      <AlertTriangle className="h-4 w-4 text-[#E8921E]" />
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3">
                                 {s.status === "active" && (
@@ -562,6 +638,86 @@ function ContactDetail() {
           onSaved={() => qc.invalidateQueries({ queryKey: ["partner", id] })}
         />
       )}
+
+      <AlertDialog open={confirmInactive} onOpenChange={setConfirmInactive}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rendere inattivo il contatto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Salvando, {cardsAboutToClose.length === 1 ? "la tessera seguente passa" : "le tessere seguenti passano"} a{" "}
+                  <strong>non attiva</strong>:
+                </p>
+                <ul className="list-disc pl-5">
+                  {cardsAboutToClose.map((c: any) => (
+                    <li key={c.id}>
+                      <strong>{c.membership_number ?? "senza numero"}</strong> — anno {c.year}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs">
+                  Il numero resta assegnato a questo contatto e non viene riutilizzato. Per
+                  riattivarla dovrai farlo a mano qui sotto, nella sezione Tesseramento.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); void save(); }}>
+              Salva e disattiva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={(o) => { if (!deleting) setConfirmDelete(o); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare definitivamente il contatto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  <strong>{impact?.display_name ?? partnerName}</strong>
+                  {impact?.email ? ` (${impact.email})` : ""} viene rimosso dal database.
+                  L'operazione non si può annullare.
+                </p>
+                {impactLoading ? (
+                  <p className="text-xs">Conteggio dei dati collegati…</p>
+                ) : impact ? (
+                  <>
+                    <p>Insieme al contatto spariscono:</p>
+                    <ul className="list-disc pl-5">
+                      <li>
+                        <strong>{impact.cards}</strong> {impact.cards === 1 ? "tessera" : "tessere"}
+                        {impact.card_numbers.length ? ` (${impact.card_numbers.join(", ")})` : ""}
+                      </li>
+                      <li><strong>{impact.consents}</strong> {impact.consents === 1 ? "consenso privacy" : "consensi privacy"}</li>
+                      <li><strong>{impact.groups}</strong> {impact.groups === 1 ? "assegnazione a gruppo" : "assegnazioni a gruppi"}</li>
+                      <li><strong>{impact.roles}</strong> {impact.roles === 1 ? "ruolo assegnato" : "ruoli assegnati"}</li>
+                    </ul>
+                    <p className="text-xs">
+                      La cronologia nel registro attività resta, comprese le voci su questo
+                      contatto. I numeri di tessera elencati tornano liberi.
+                    </p>
+                  </>
+                ) : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || impactLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+            >
+              {deleting ? "Eliminazione…" : "Elimina tutto"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

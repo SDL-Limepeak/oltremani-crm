@@ -21,13 +21,17 @@ bun run dev                     # needed only by public-form.test.ts — serves 
 
 | File | Covers |
 |---|---|
-| `rls-matrix.test.ts` | the permission matrix: what each of the four roles can see and do |
+| `rls-matrix.test.ts` | the permission matrix: what each of the four profiles can see and do. Since 2026-09-17 the contact half asserts the *opposite* of what it used to — everyone sees everything — and is kept rather than deleted, because that claim needs holding too |
 | `regressions.test.ts` | one test per entry in [knowissues.md](../.claude/knowissues.md), plus the 2026-07-25 hardening |
-| `roles-and-membership.test.ts` | client feedback 7 and 10: the role picklist and its RLS, and all four membership-claim branches over real HTTP |
-| `selections.test.ts` | the partner_type codes are frozen and the labels say what the client confirmed; cross-checked against the live CHECK constraints |
+| `roles-and-membership.test.ts` | client feedback 7 and 10: the role picklist and its RLS, and all four membership-claim branches over real HTTP. Also pins that the public form drops unknown role codes silently — which is the behaviour that loses answers when the WordPress form is not updated |
+| `selections.test.ts` | the selection codes are frozen and the labels are free to move; the five operational roles are the ones the client asked for; cross-checked against the live CHECK constraints |
+| `user-hierarchy.test.ts` | who may act on whom in user management, probed account by account with real tokens — including the peer case (volunteer → volunteer), which is denied |
+| `memberships.test.ts` | hand-typed card numbers, duplicates now allowed, the nightly expiry predicate, and cards staying closed to volunteers |
 | `partner-filters.test.ts` | pure unit tests for the contact filters (KI-05) and the triage predicate (KI-15) — no database |
 | `public-form.test.ts` | the unauthenticated endpoint, HTTP → route → RPC → DB. Skips itself if no server answers |
+| `server-functions.test.ts` | the rules that live in `src/lib/*.functions.ts` and nowhere else — group reassignment on delete, the export gate, contact deletion, the inactive-card cascade — called over real HTTP. Skips itself if no server answers |
 | `helpers/pgrest.ts` | PostgREST driver. **Use it; do not hand-roll fetches** — see the trap below |
+| `helpers/serverfn.ts` | server-function driver. Resolves the `/_serverFn/<id>` endpoint out of the module Vite serves, and explains the three wire-format traps |
 | `helpers/env.ts` | `.env` + credentials + the fixture UUIDs |
 
 Two files here are **gitignored** because they hold working passwords for accounts on the

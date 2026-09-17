@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuthUser } from "@/hooks/use-auth-user";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,15 @@ export type UserFormValues = {
 };
 
 export function UserDialog({ open, onOpenChange, initial, categories, onSaved }: { open: boolean; onOpenChange: (b: boolean) => void; initial?: any; categories: any[]; onSaved: (vals: UserFormValues) => void }) {
+  const { profile } = useAuthUser();
+  const PROFILE_RANK: Record<string, number> = { admin: 4, superuser: 3, coordinator: 2, volunteer: 1 };
+  const myRank = profile?.role === "admin" ? 99 : PROFILE_RANK[profile?.role ?? ""] ?? 0;
+  const assignableProfiles = [
+    { value: "superuser", label: "Superuser" },
+    { value: "coordinator", label: "Coordinatore" },
+    { value: "volunteer", label: "Volontario" },
+  ].filter((r) => myRank > (PROFILE_RANK[r.value] ?? 0));
+
   const [f, setF] = useState<UserFormValues>({ name: "", email: "", role: "volunteer", status: "active", category_ids: [] });
 
   useEffect(() => {
@@ -49,13 +59,15 @@ export function UserDialog({ open, onOpenChange, initial, categories, onSaved }:
             )}
           </div>
           <div className="space-y-2">
-            <Label>Ruolo</Label>
+            <Label>Profilo</Label>
             <Select value={f.role} onValueChange={v => set("role", v as any)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="superuser">Superuser</SelectItem>
-                <SelectItem value="coordinator">Coordinatore</SelectItem>
-                <SelectItem value="volunteer">Volontario</SelectItem>
+                {/* Only profiles below the caller's: the server refuses the rest anyway
+                    (assertCanManage), and offering them would just produce an error. */}
+                {assignableProfiles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

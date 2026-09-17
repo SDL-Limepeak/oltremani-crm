@@ -7,7 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight, ChevronDown, Plus, Folder, FolderOpen, Circle } from "lucide-react";
-import { listCategories, upsertCategory, deleteCategory } from "@/lib/categories.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { listCategories, upsertCategory, deleteCategory, categoryDeletionImpact } from "@/lib/categories.functions";
 import { CategoryDialog } from "@/components/category-dialog";
 import { useAuthUser } from "@/hooks/use-auth-user";
 
@@ -110,14 +115,52 @@ function GroupsPage() {
     setOpen(true);
   }
 
-  async function handleDelete(node: any) {
-    if (!confirm(`Eliminare il gruppo "${node.name}"?`)) return;
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [moveTo, setMoveTo] = useState<string>("");
+  const [deleting, setDeleting] = useState(false);
+
+  // Asked when the dialog opens, not on page load: it is one query per group and the
+  // counts have to be the ones at the moment of asking.
+  const { data: impact, isLoading: impactLoading } = useQuery({
+    queryKey: ["category-deletion-impact", pendingDelete?.id],
+    queryFn: () => categoryDeletionImpact({ data: { id: pendingDelete.id } }),
+    enabled: !!pendingDelete,
+  });
+
+  // Every other territorial group. The one being deleted is excluded, obviously, but so
+  // is Validation — parking contacts in the triage queue is not a destination.
+  const moveTargets = (data ?? []).filter(
+    (c: any) =>
+      c.category_type === "territorial" &&
+      c.id !== pendingDelete?.id &&
+      c.name.toLowerCase() !== "validation",
+  );
+
+  const needsTarget = (impact?.contacts ?? 0) > 0;
+
+  function handleDelete(node: any) {
+    setMoveTo("");
+    setPendingDelete(node);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
     try {
-      await deleteCategory({ data: { id: node.id } });
-      toast.success("Gruppo eliminato");
+      const res = await deleteCategory({
+        data: { id: pendingDelete.id, reassign_to_id: needsTarget ? moveTo : null },
+      });
+      toast.success(
+        res.reassigned
+          ? `Gruppo eliminato, ${res.reassigned} ${res.reassigned === 1 ? "contatto spostato" : "contatti spostati"}`
+          : "Gruppo eliminato",
+      );
       qc.invalidateQueries({ queryKey: ["categories"] });
+      setPendingDelete(null);
     } catch (e: any) {
       toast.error(e.message ?? "Errore");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -163,6 +206,70 @@ function GroupsPage() {
           }
         }}
       />
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o && !deleting) setPendingDelete(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il gruppo "{pendingDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {impactLoading ? (
+                  <p className="text-sm">Controllo chi c'è dentro…</p>
+                ) : (
+                  <>
+                    {needsTarget ? (
+                      <>
+                        <p>
+                          Ci sono <strong>{impact?.contacts}</strong>{" "}
+                          {impact?.contacts === 1 ? "contatto" : "contatti"} in questo gruppo
+                          {impact?.sample?.length ? <> ({impact.sample.join(", ")}{(impact.contacts ?? 0) > impact.sample.length ? ", …" : ""})</> : null}.
+                          Scegli dove spostarli: il gruppo non si può eliminare lasciandoli senza.
+                        </p>
+                        <div className="pt-1">
+                          <Select value={moveTo} onValueChange={setMoveTo}>
+                            <SelectTrigger><SelectValue placeholder="Sposta i contatti in…" /></SelectTrigger>
+                            <SelectContent>
+                              {moveTargets.map((c: any) => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    ) : (
+                      <p>Il gruppo è vuoto: non c'è nessun contatto da spostare.</p>
+                    )}
+
+                    {impact?.children?.length ? (
+                      <p className="text-xs">
+                        I sottogruppi <strong>{impact.children.join(", ")}</strong> non vengono
+                        eliminati: restano, senza gruppo padre.
+                      </p>
+                    ) : null}
+                    {impact?.users ? (
+                      <p className="text-xs">
+                        {impact.users} {impact.users === 1 ? "utente ha" : "utenti hanno"} questo
+                        gruppo assegnato: l'assegnazione sparisce. Non cambia cosa vedono — la
+                        visibilità dei contatti non dipende più dai gruppi.
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || impactLoading || (needsTarget && !moveTo)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+            >
+              {deleting ? "Eliminazione…" : needsTarget ? "Sposta ed elimina" : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

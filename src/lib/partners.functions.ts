@@ -5,7 +5,7 @@ import { applyPartnerFilters, needsFullScan } from "@/lib/partner-filters";
 
 const ListFilters = z.object({
   status: z.string().optional(),
-  partner_type: z.string().optional(),
+  role_ids: z.array(z.string().uuid()).optional(),
   category_id: z.string().uuid().optional(),
   city_id: z.string().uuid().optional(),
   province_code: z.string().optional(),
@@ -16,9 +16,10 @@ const ListFilters = z.object({
   offset: z.number().int().min(0).default(0),
 }).default({});
 
-const PARTNER_COLUMNS = `id, first_name, last_name, display_name, email, phone, mobile, status, partner_type, raw_city, raw_province, city_id, created_at,
+const PARTNER_COLUMNS = `id, first_name, last_name, display_name, email, phone, mobile, status, raw_city, raw_province, city_id, created_at,
    res_city(id, name, province_code),
    res_partner_category_rel(category_id, res_partner_category(id, name, category_type)),
+   res_partner_role_rel(role_id, res_partner_role(id, code, name, sort_order)),
    membership_subscription(id, year, status)`;
 
 /** Page size and ceiling for the full-scan path below. */
@@ -38,7 +39,6 @@ export const listPartners = createServerFn({ method: "POST" })
         .order("created_at", { ascending: false })
         .range(from, to);
       if (data.status) q = q.eq("status", data.status);
-      if (data.partner_type) q = q.eq("partner_type", data.partner_type);
       if (data.city_id) q = q.eq("city_id", data.city_id);
       if (data.search) {
         const s = `%${data.search}%`;
@@ -133,7 +133,6 @@ const PartnerInput = z.object({
   raw_city: z.string().nullable().optional(),
   raw_province: z.string().nullable().optional(),
   status: z.enum(["new", "active", "rejected", "old"]).optional(),
-  partner_type: z.enum(["individual", "activist", "citizen"]).optional(),
   notes: z.string().max(5000).nullable().optional(),
   category_ids: z.array(z.string().uuid()).optional(),
   role_ids: z.array(z.string().uuid()).optional(),
@@ -239,6 +238,31 @@ export const upsertPartner = createServerFn({ method: "POST" })
       });
     }
 
+    // A contact moved to "Inattivo" keeps their cards otherwise, and an inactive member
+    // holding an active card is the state that makes the membership register wrong:
+    // they still count as a paid-up member everywhere the card is what gets checked.
+    // Only the transition deactivates them, not every save of an already-inactive
+    // contact, so a card reactivated on purpose afterwards is not undone on the next edit.
+    if (partner.status === "old" && old?.status !== "old") {
+      const { data: cards } = await supabase
+        .from("membership_subscription")
+        .select("id, membership_number, year, status")
+        .eq("partner_id", result.id)
+        .eq("status", "active");
+      if (cards?.length) {
+        await supabase
+          .from("membership_subscription")
+          .update({ status: "inactive" })
+          .eq("partner_id", result.id)
+          .eq("status", "active");
+        await writeAudit(supabase, userId, {
+          log_type: "subscription_change", action: "update", model_name: "membership_subscription",
+          record_id: result.id, old: cards,
+          new: { status: "inactive", reason: "contatto passato a inattivo" },
+        });
+      }
+    }
+
     return result;
   });
 
@@ -288,12 +312,72 @@ export const validatePartner = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * What a physical delete would take with it.
+ *
+ * Every child of res_partner is ON DELETE CASCADE, so the deletion is a single statement
+ * and the caller never sees what it removed. The dialog asks for this first and names the
+ * counts, because "elimina contatto" does not read like "elimina anche due tessere e
+ * sette consensi privacy" — and cards carry a number that is unique and never reissued.
+ */
+export const partnerDeletionImpact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: p } = await supabase
+      .from("res_partner")
+      .select(
+        `id, display_name, email,
+         membership_subscription(id, membership_number, year, status),
+         privacy_consent(id),
+         res_partner_category_rel(category_id),
+         res_partner_role_rel(role_id)`,
+      )
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!p) throw new Error("Contatto non trovato");
+
+    const cards = ((p as any).membership_subscription ?? []) as any[];
+    return {
+      display_name: (p as any).display_name ?? null,
+      email: (p as any).email ?? null,
+      cards: cards.length,
+      // Named explicitly: a revoked card still occupies its number for good.
+      card_numbers: cards.map((c) => c.membership_number).filter(Boolean) as string[],
+      consents: ((p as any).privacy_consent ?? []).length,
+      groups: ((p as any).res_partner_category_rel ?? []).length,
+      roles: ((p as any).res_partner_role_rel ?? []).length,
+    };
+  });
+
 export const deletePartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: old } = await supabase.from("res_partner").select("*").eq("id", data.id).maybeSingle();
+
+    // Contacts are now editable by everyone, but removing one for good is not an edit:
+    // the cards, the consents and the proof of consent go with it. The partner_delete
+    // policy says the same thing in the database; this check is what produces a sentence
+    // the user can read instead of an empty result.
+    const { data: caller } = await supabase
+      .from("res_users").select("role").eq("id", userId).maybeSingle();
+    if (!caller || !["admin", "superuser"].includes(caller.role)) {
+      throw new Error("Solo admin o superuser possono eliminare un contatto");
+    }
+
+    // Snapshotted before the delete: the children go with the row and the audit entry is
+    // the only place they survive. audit_log has no FK to res_partner, so it stays.
+    const { data: old } = await supabase
+      .from("res_partner")
+      .select(
+        `*, membership_subscription(*), privacy_consent(*),
+         res_partner_category_rel(category_id), res_partner_role_rel(role_id)`,
+      )
+      .eq("id", data.id)
+      .maybeSingle();
+
     const { error } = await supabase.from("res_partner").delete().eq("id", data.id);
     if (error) throw error;
     await writeAudit(supabase, userId, {

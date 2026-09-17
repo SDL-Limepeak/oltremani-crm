@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-import { PARTNER_TYPE_LABEL } from "@/lib/selections";
 
 const PAGE = 1000;
 
@@ -33,7 +32,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     const { data: me } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
     const canReadAudit = me?.role === "admin";
 
-    const [tot, news, actives, subs, recentInbound, recentAudit, ptRaw, citizensRaw] = await Promise.all([
+    const [tot, news, actives, subs, recentInbound, recentAudit, ptRaw, byGroupRaw] = await Promise.all([
       supabase.from("res_partner").select("id", { count: "exact", head: true }),
       supabase.from("res_partner").select("id", { count: "exact", head: true }).eq("status", "new"),
       supabase.from("res_partner").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -58,36 +57,51 @@ export const getDashboardStats = createServerFn({ method: "GET" })
             .limit(8)
         : Promise.resolve({ data: [] as any[] }),
       selectAll((from, to) =>
-        supabase.from("res_partner").select("partner_type, status").range(from, to),
+        (supabase as any)
+          .from("res_partner")
+          .select("status, res_partner_role_rel(res_partner_role(name, sort_order))")
+          .range(from, to),
       ).then((data) => ({ data })),
       selectAll((from, to) =>
         (supabase as any)
           .from("res_partner")
           .select("id, res_partner_category_rel(res_partner_category(name, category_type))")
-          .eq("partner_type", "citizen")
           .range(from, to),
       ).then((data) => ({ data })),
     ]);
 
-    // Partner type × status aggregation
-    const ptMap: Record<string, { total: number; byStatus: Record<string, number> }> = {};
+    // Role × status aggregation, in place of the old partner_type one.
+    //
+    // Roles are multiple, so this does not partition the contacts: someone who is both
+    // "Attivista" and "Famiglia ospitante" is counted under each. The totals therefore add
+    // up to more than the number of contacts, which is correct for "how many people can do
+    // X" and would be wrong for a pie chart of shares. "Senza ruolo" is kept as its own
+    // entry rather than dropped — it is the bucket that needs attention.
+    const roleMap: Record<string, { total: number; byStatus: Record<string, number>; order: number }> = {};
+    const bump = (name: string, order: number, status: string) => {
+      if (!roleMap[name]) roleMap[name] = { total: 0, byStatus: {}, order };
+      roleMap[name].total++;
+      roleMap[name].byStatus[status] = (roleMap[name].byStatus[status] ?? 0) + 1;
+    };
     for (const row of (ptRaw.data ?? []) as any[]) {
-      const t: string = row.partner_type ?? "individual";
-      if (!ptMap[t]) ptMap[t] = { total: 0, byStatus: {} };
-      ptMap[t].total++;
-      const s: string = row.status ?? "unknown";
-      ptMap[t].byStatus[s] = (ptMap[t].byStatus[s] ?? 0) + 1;
+      const status: string = row.status ?? "unknown";
+      const rels: any[] = row.res_partner_role_rel ?? [];
+      if (!rels.length) {
+        bump("Senza ruolo", 999, status);
+        continue;
+      }
+      for (const rel of rels) {
+        bump(rel.res_partner_role?.name ?? "—", rel.res_partner_role?.sort_order ?? 500, status);
+      }
     }
-    const partnerTypeStats = Object.entries(ptMap).map(([type, v]) => ({
-      type,
-      name: PARTNER_TYPE_LABEL[type] ?? type,
-      value: v.total,
-      byStatus: v.byStatus,
-    }));
+    const partnerRoleStats = Object.entries(roleMap)
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([name, v]) => ({ type: name, name, value: v.total, byStatus: v.byStatus }));
 
-    // Citizens by territorial group
+    // Contacts by territorial group. This used to count only partner_type='citizen';
+    // with "Tipo" gone it counts everybody, which is what the card claimed to show anyway.
     const groupMap: Record<string, number> = {};
-    for (const row of (citizensRaw.data ?? []) as any[]) {
+    for (const row of (byGroupRaw.data ?? []) as any[]) {
       const rels: any[] = row.res_partner_category_rel ?? [];
       const territorial = rels.filter((r: any) => r.res_partner_category?.category_type === "territorial");
       if (!territorial.length) {
@@ -99,7 +113,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         }
       }
     }
-    const citizensByGroup = Object.entries(groupMap)
+    const contactsByGroup = Object.entries(groupMap)
       .map(([group, count]) => ({ name: group, value: count }))
       .sort((a, b) => b.value - a.value);
 
@@ -112,7 +126,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       canReadAudit,
       recentInbound: recentInbound.data ?? [],
       recentAudit: recentAudit.data ?? [],
-      partnerTypeStats,
-      citizensByGroup,
+      partnerRoleStats,
+      contactsByGroup,
     };
   });

@@ -18,34 +18,35 @@
 export type Selection = { value: string; label: string };
 
 /**
- * Direction of the relationship with the association.
- *
- * Relabelled 2026-08-06 at the client's request; direction confirmed by them the same day
- * — "activist gives support, citizen receives it". Stored values unchanged:
- *   activist → "Dà supporto"
- *   citizen  → "Cerca supporto"
- *
- * The original email listed "cerca supporto e da supporto" straight after "attivista e
- * cittadino", which read positionally would have paired them the other way round. It was
- * worth asking: the swap is one word on screen and reverses the meaning of every contact
- * already in the database. Pinned by tests/selections.test.ts.
+ * "Tipo" (res_partner.partner_type) was removed from the product on 2026-09-17 and
+ * replaced by the operational roles, which say the same thing with more precision and are
+ * multiple. The column still exists and still holds individual/activist/citizen for the
+ * eight contacts created before that date — dropping it would throw away the only record
+ * of what those contacts were marked as, and nothing reads it any more.
  */
-export const PARTNER_TYPE: Selection[] = [
-  { value: "individual", label: "Non specificato" },
-  { value: "activist", label: "Dà supporto" },
-  { value: "citizen", label: "Cerca supporto" },
-];
 
+/**
+ * Order is the client's, set 2026-09-17: Nuovo → Attivo → Inattivo → Rifiutato. It is the
+ * lifecycle of someone who joins and later leaves, with "rifiutato" last because it is the
+ * one that never entered. It drives the dropdowns *and* the sort of the contacts list, so
+ * changing this array moves both.
+ */
 export const PARTNER_STATUS: Selection[] = [
   { value: "new", label: "Nuovo" },
   { value: "active", label: "Attivo" },
-  { value: "rejected", label: "Rifiutato" },
   { value: "old", label: "Inattivo" },
+  { value: "rejected", label: "Rifiutato" },
 ];
 
+/**
+ * `expired` is not set by hand: the nightly `expire_memberships()` job flips an active
+ * card whose end_date has passed. It reads as an ending rather than a decision, which is
+ * why it shares the muted treatment with `revoked` instead of looking like a live card.
+ */
 export const SUBSCRIPTION_STATUS: Selection[] = [
   { value: "active", label: "Attiva" },
   { value: "inactive", label: "Non attiva" },
+  { value: "expired", label: "Scaduta" },
   { value: "revoked", label: "Revocata" },
 ];
 
@@ -53,7 +54,6 @@ function toMap(sel: Selection[]): Record<string, string> {
   return Object.fromEntries(sel.map((s) => [s.value, s.label]));
 }
 
-export const PARTNER_TYPE_LABEL = toMap(PARTNER_TYPE);
 export const PARTNER_STATUS_LABEL = toMap(PARTNER_STATUS);
 export const SUBSCRIPTION_STATUS_LABEL = toMap(SUBSCRIPTION_STATUS);
 

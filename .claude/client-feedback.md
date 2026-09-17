@@ -1,4 +1,7 @@
-# Client feedback — status of the 12 points
+# Client feedback
+
+Two rounds: 2026-07-25 (12 points, closed) and **2026-09-17** (8 points, built but not
+published — jump to the second half).
 
 Source: client email after the 2026-07-25 demo. The client asked explicitly **not to
 change anything yet** and to review the schema together on a call with screen sharing.
@@ -105,6 +108,21 @@ Diego is the only admin), the form link, and the three open points. Draft kept a
 The three items below are therefore **waiting on the client**, not on us. Nothing is
 blocked on our side.
 
+**The 22 marketing/newsletter consents already recorded are kept.** Asked as "togliamo le
+due finalità aggiuntive", which is about what the form collects. Deleting the existing rows
+would destroy the evidence that those consents were given — the record that the processing
+was lawful — and cannot be undone. They are out of the form, out of the UI and out of
+`submit_public_contact`; the history stays.
+
+**Status order drives the list, not only the dropdown.** `STATUS_ORDER` in the contacts
+page is now derived from `PARTNER_STATUS` rather than repeated, so the two cannot drift.
+
+**Deleting a group moves its members before the delete, not after.** The cascade on
+`res_partner_category_rel` erases the record of who was in the group, so doing it in the
+other order would leave nothing to move. Contacts already in the destination are filtered
+out by hand — PostgREST has no `ON CONFLICT`, and one duplicate would fail the whole batch
+on the composite primary key, taking the other members with it.
+
 ## Still open
 
 ### 1 + 2 — the hierarchy, and an ambiguity worth resolving first
@@ -139,3 +157,91 @@ The transition happens on validation (assigning city and group), in `validatePar
 Putting it on a timer would make "active" a measure of elapsed time rather than a real
 state — a contact nobody ever looked at would become active on its own. If an automatism is
 wanted, tie it to an event: card activated, or validation completed.
+
+
+---
+
+# Round two — 2026-09-17
+
+Given in chat while the 2026-08-06 build was live. The client approved writing to the
+production database directly, so **the schema changes are applied** and the application
+code is in the working tree, uncommitted and unpublished.
+
+| # | Request | Status |
+|---|---|---|
+| 1 | Five new operational roles, on the form and internally | ✅ applied + code |
+| 2 | Filter contacts by role (multi-select) instead of by "Tipo"; Tipo disappears | ✅ code |
+| 3 | "Tesserato" column in the contacts table: green tick / red cross for the current year | ✅ code |
+| 4 | Warn before making a contact inactive, then deactivate its cards too | ✅ code |
+| 5 | Superuser can delete contacts physically, with a warning listing the child records | ✅ applied + code |
+| 6 | Every user sees — and edits — every contact | ✅ applied |
+| 7 | User management is hierarchical; "ruolo" becomes "profilo"; delete becomes disable | ✅ applied + code |
+| 8 | Card numbers typed by hand · duplicates warned not blocked · expiry from end_date, nightly job · export button for admin/superuser/coordinator with every column | ✅ applied + code |
+| 9 | Drop the two secondary privacy purposes; a consent arriving from the web always has channel "Web" | ✅ applied + code |
+| 10 | Contact statuses ordered Nuovo → Attivo → Inattivo → Rifiutato | ✅ code |
+| 11 | Deleting a group must ask where its members go; an empty group deletes freely | ✅ code |
+
+## Decisions taken inside these points
+
+**The five roles.** ATTIVISTA · SOCIO APS · MEMBRO DELLA COMUNITÀ · FAMIGLIA OSPITANTE ·
+SPECIALISTA DI DIRITTI SULLE MIGRAZIONI E/O ABITARE. Written in sentence case in the UI
+("Attivista", "Socio APS", …) to match every other label in the product; the client wrote
+them in capitals in a list, which reads as emphasis rather than as house style.
+
+The last one merges the two entries created on 2026-08-06 — `specialista_abitare` and
+`specialista_migrazione` — which had been split *precisely* so that "e/o" was
+representable through a multiple selection. The client preferred one line on the form.
+`bussola` was dropped. Safe only because `res_partner_role_rel` was empty at the time.
+
+**"Tipo" is gone from the product, not from the database.** `res_partner.partner_type`
+still holds `individual`/`activist`/`citizen` for the eight existing contacts. Nothing
+reads it. Dropping the column would destroy the only record of how those contacts were
+classified and would gain nothing.
+
+**Delete means contacts, not users.** Asked as "eliminare gli utenti", but the child
+records named — tessere, privacy — hang off `res_partner`, not `res_users`. Confirmed with
+the client: it is the contacts. Physical delete, admin/superuser, with a dialog that counts
+the cards (by number), consents, groups and roles that go with it.
+
+**Two tessere attive per year cannot happen, so that warning cannot fire.** The client
+asked for a yellow triangle when a contact has two active cards for the current year. The
+partial unique index `idx_sub_partner_year_active` already makes that state impossible. The
+warning was built anyway, as a net, and the constraint was kept: a rule enforced beats a
+rule flagged. Reversible in one line if they would rather be warned than blocked — see
+[db/schema.md](db/schema.md).
+
+**The duplicate-number warning required removing a constraint.** `membership_number` was
+UNIQUE; a duplicate was refused, not flagged. The client chose "togli UNIQUE, avvisa e
+basta". Consequence carried forward: `submit_public_contact` identifies a declared card by
+number, and that lookup now resolves to whichever duplicate it finds first. It still never
+moves a card between contacts, so the worst case is still "sent to validation".
+
+**Expiry follows `end_date`, applied nightly.** Not derived from `year`: a card issued in
+December with a twelve-month end date is not expired on 1 January. `pg_cron` runs
+`expire_memberships()` at `2 0 * * *`. The database is UTC and pg_cron 1.6 has no per-job
+timezone, so that is 02:02 Italian time in summer, 01:02 in winter.
+
+**The 22 marketing/newsletter consents already recorded are kept.** Asked as "togliamo le
+due finalità aggiuntive", which is about what the form collects. Deleting the existing rows
+would destroy the evidence that those consents were given — the record that the processing
+was lawful — and cannot be undone. They are out of the form, out of the UI and out of
+`submit_public_contact`; the history stays.
+
+**Status order drives the list, not only the dropdown.** `STATUS_ORDER` in the contacts
+page is now derived from `PARTNER_STATUS` rather than repeated, so the two cannot drift.
+
+**Deleting a group moves its members before the delete, not after.** The cascade on
+`res_partner_category_rel` erases the record of who was in the group, so doing it in the
+other order would leave nothing to move. Contacts already in the destination are filtered
+out by hand — PostgREST has no `ON CONFLICT`, and one duplicate would fail the whole batch
+on the composite primary key, taking the other members with it.
+
+## Still open
+
+- The **WordPress form** is maintained by someone else and is very likely still posting
+  the old role codes (`bussola`, `membro_semplice`, `specialista_abitare`,
+  `specialista_migrazione`). `submit_public_contact` drops unknown codes silently and on
+  purpose, so those answers are lost with no error anywhere. Somebody has to update it.
+- **King Pin** is `status='old'` and holds an active 2026 card (2600004). Pre-existing: the
+  cascade built in point 4 only runs on the transition, and this contact was made inactive
+  from the published build, which does not have it. One manual revoke fixes it.

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listCategories } from "@/lib/categories.functions";
 import { searchCities } from "@/lib/cities.functions";
 import { listPartnerRoles, upsertPartner } from "@/lib/partners.functions";
-import { PARTNER_STATUS, PARTNER_TYPE } from "@/lib/selections";
+import { PARTNER_STATUS } from "@/lib/selections";
 import { Save } from "lucide-react";
 
 type Props = {
@@ -22,7 +22,7 @@ type Props = {
 export function ContactForm({ initial, onSaved }: Props) {
   const [form, setForm] = useState<any>(() => ({
     first_name: "", last_name: "", email: "", phone: "", mobile: "",
-    city_id: null, raw_city: "", raw_province: "", status: "new", partner_type: "individual", notes: "",
+    city_id: null, raw_city: "", raw_province: "", status: "new", notes: "",
     ...(initial ?? {}),
     category_ids: initial?.res_partner_category_rel?.map((r: any) => r.category_id) ?? [],
     role_ids: initial?.res_partner_role_rel?.map((r: any) => r.role_id) ?? [],
@@ -40,7 +40,6 @@ export function ContactForm({ initial, onSaved }: Props) {
         mobile: initial.mobile ?? "",
         city_id: initial.city_id ?? null,
         status: initial.status ?? "new",
-        partner_type: initial.partner_type ?? "individual",
         notes: initial.notes ?? "",
       };
       return JSON.stringify({
@@ -55,7 +54,6 @@ export function ContactForm({ initial, onSaved }: Props) {
         mobile: form.mobile ?? "",
         city_id: form.city_id ?? null,
         status: form.status ?? "new",
-        partner_type: form.partner_type ?? "individual",
         notes: form.notes ?? "",
         category_ids: JSON.stringify([...form.category_ids].sort()),
         role_ids: JSON.stringify([...form.role_ids].sort()),
@@ -92,6 +90,10 @@ export function ContactForm({ initial, onSaved }: Props) {
   }
   const toggleCat = (id: string) => toggleIn("category_ids", id);
 
+  // NB: the "made inactive → deactivate its cards" warning is NOT here. This component is
+  // only ever used to create a contact (routes/contacts/new.tsx), and a contact that does
+  // not exist yet has no cards to deactivate. The warning lives in contacts/$id.tsx, which
+  // is where an existing contact's status is actually changed.
   async function save() {
     setSaving(true);
     try {
@@ -111,7 +113,6 @@ export function ContactForm({ initial, onSaved }: Props) {
           raw_city: form.raw_city || null,
           raw_province: form.raw_province || null,
           status: form.status,
-          partner_type: form.partner_type,
           notes: form.notes || null,
           category_ids: cleanCatIds,
           role_ids: form.role_ids,
@@ -130,18 +131,8 @@ export function ContactForm({ initial, onSaved }: Props) {
   return (
     <Card className="p-6 rounded-2xl border-0 shadow-sm space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Type and status */}
-        <div className="space-y-2">
-          {/* Labels come from selections.ts; the stored values stay activist/citizen. */}
-          <Label>Tipo</Label>
-          <Select value={form.partner_type ?? "individual"} onValueChange={v => set("partner_type", v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
+        {/* "Tipo" was removed in favour of Ruoli, below. */}
+        <div className="space-y-2 md:col-span-2">
           <Label>Stato</Label>
           <Select value={form.status} onValueChange={v => set("status", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -243,6 +234,7 @@ export function ContactForm({ initial, onSaved }: Props) {
           <Save className="h-4 w-4 mr-1.5" />{saving ? "Salvataggio…" : "Salva"}
         </Button>
       </div>
+
     </Card>
   );
 }

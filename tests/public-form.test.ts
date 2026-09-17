@@ -26,6 +26,7 @@ const stamp = Date.now();
 const emails = {
   matched: `autotest-form-a-${stamp}@oltremani.test`,
   unmatched: `autotest-form-b-${stamp}@oltremani.test`,
+  consents: `autotest-form-c-${stamp}@oltremani.test`,
 };
 
 beforeAll(async () => {
@@ -131,6 +132,43 @@ describe("public contact endpoint", () => {
     expect(
       rows[0].res_partner_category_rel.map((r: any) => r.res_partner_category.name),
     ).toContain("Validation");
+  });
+
+  test("only the privacy policy is recorded, and the channel is web", async () => {
+    if (!serverUp) return;
+    // The client dropped the two secondary purposes on 2026-09-17. They are ignored
+    // rather than rejected — same reasoning as the role codes: the WordPress form is
+    // maintained by someone else and must not start failing. So this submission sends
+    // all three and expects one row back.
+    const res = await post({
+      first_name: "AUTOTEST",
+      last_name: "Consents",
+      email: emails.consents,
+      phone: "+390000000009",
+      city: "Varese",
+      province: "VA",
+      privacy_consents: [
+        { consent_type: "privacy_policy", accepted: true, version: "1.0" },
+        { consent_type: "newsletter", accepted: true, version: "1.0" },
+        { consent_type: "marketing", accepted: true, version: "1.0" },
+      ],
+    });
+    if (res.status === 429) return;
+    expect(res.status).toBe(200);
+
+    const rows = (
+      await select(
+        admin,
+        "privacy_consent",
+        `select=consent_type,channel,source&partner_id=eq.${res.body.partner_id}`,
+      )
+    ).rows;
+
+    expect(rows.map((r: any) => r.consent_type)).toEqual(["privacy_policy"]);
+    // Not a value the form chooses: this function *is* the web form, so the channel is
+    // settled by construction. A form that could set it would be a form that could lie.
+    expect(rows[0].channel).toBe("web");
+    expect(rows[0].source).toBe("public_form");
   });
 
   test("every submission leaves an inbound_form row in the audit log", async () => {

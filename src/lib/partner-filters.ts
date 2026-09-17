@@ -19,11 +19,37 @@ export type PartnerFilterInput = {
   province_code?: string;
   year?: number;
   has_active_sub?: boolean;
+  role_ids?: string[];
 };
 
 /** True when at least one filter has to run in JS, forcing the full-scan path. */
 export function needsFullScan(f: PartnerFilterInput): boolean {
-  return Boolean(f.category_id || f.province_code || f.year || f.has_active_sub !== undefined);
+  return Boolean(
+    f.category_id ||
+      f.province_code ||
+      f.year ||
+      f.has_active_sub !== undefined ||
+      f.role_ids?.length,
+  );
+}
+
+/**
+ * "Tesserato": holds a card that is active *in the given year*. Both the contacts table
+ * and the CSV read the answer from here rather than each deciding for itself — a contact
+ * shown with a green tick and exported as "No" would be the kind of discrepancy nobody
+ * reports as a bug, they just stop trusting the file.
+ *
+ * A contact can hold several cards for the same year (a revoked one and its replacement:
+ * 2600001 and 2600002 both belong to Diego), so this asks whether *any* of them is active,
+ * not whether the latest one is.
+ */
+export function hasActiveCard(
+  r: { membership_subscription?: any[] | null },
+  year: number = new Date().getFullYear(),
+): boolean {
+  return Boolean(
+    r.membership_subscription?.some((s: any) => s.year === year && s.status === "active"),
+  );
 }
 
 export function applyPartnerFilters<T extends Record<string, any>>(
@@ -53,12 +79,18 @@ export function applyPartnerFilters<T extends Record<string, any>>(
 
   if (f.has_active_sub !== undefined) {
     const y = f.year ?? currentYear;
-    out = out.filter((r) => {
-      const has = r.membership_subscription?.some(
-        (s: any) => s.year === y && s.status === "active",
-      );
-      return f.has_active_sub ? Boolean(has) : !has;
-    });
+    out = out.filter((r) => (f.has_active_sub ? hasActiveCard(r, y) : !hasActiveCard(r, y)));
+  }
+
+  // Roles replaced "Tipo" as the filter on this list. The selection is multiple and reads
+  // as OR: picking "Attivista" and "Socio APS" means "either", which is what someone
+  // narrowing a list expects. AND would return almost nothing, since roles are rarely
+  // combined.
+  if (f.role_ids?.length) {
+    const wanted = new Set(f.role_ids);
+    out = out.filter((r) =>
+      (r as any).res_partner_role_rel?.some((rel: any) => wanted.has(rel.role_id)),
+    );
   }
 
   return out;

@@ -61,15 +61,17 @@ async function post(body: unknown) {
 }
 
 describe("point 7 — the role picklist", () => {
-  test("the five seeded roles are readable by every role, ordered", async () => {
+  test("the five roles are readable by every profile, ordered", async () => {
+    // Redefined by the client on 2026-09-17. The order is the one they listed them in and
+    // is what sort_order encodes, so it is part of the expectation.
     for (const s of [admin, coordinator, volunteer]) {
       const res = await select(s, "res_partner_role", "select=code,name,sort_order&order=sort_order");
       expect(res.rows.map((r: any) => r.code)).toEqual([
+        "attivista",
+        "socio_aps",
+        "membro_comunita",
         "famiglia_ospitante",
-        "specialista_abitare",
-        "specialista_migrazione",
-        "membro_semplice",
-        "bussola",
+        "specialista_diritti",
       ]);
     }
   });
@@ -104,11 +106,14 @@ describe("point 7 — assigning roles to a contact", () => {
     const partnerId = p.rows[0].id;
 
     const roles = (await select(volunteer, "res_partner_role", "select=id,code")).rows as any[];
-    const bussola = roles.find((r) => r.code === "bussola");
+    const attivista = roles.find((r) => r.code === "attivista");
     const famiglia = roles.find((r) => r.code === "famiglia_ospitante");
 
+    // Two at once on purpose: the selection is multiple by design — "specialista di
+    // diritti sulle migrazioni e/o abitare" is one entry now, but a contact can still be
+    // an activist *and* a host family.
     const rel = await insert(volunteer, "res_partner_role_rel", [
-      { partner_id: partnerId, role_id: bussola.id },
+      { partner_id: partnerId, role_id: attivista.id },
       { partner_id: partnerId, role_id: famiglia.id },
     ]);
     expect(didAffectRows(rel)).toBe(true);
@@ -120,19 +125,33 @@ describe("point 7 — assigning roles to a contact", () => {
       `select=res_partner_role_rel(res_partner_role(code))&id=eq.${partnerId}`,
     );
     const codes = read.rows[0].res_partner_role_rel.map((x: any) => x.res_partner_role.code).sort();
-    expect(codes).toEqual(["bussola", "famiglia_ospitante"]);
+    expect(codes).toEqual(["attivista", "famiglia_ospitante"]);
 
     await remove(admin, "res_partner", `id=eq.${partnerId}`);
   });
 
-  test("roles are perimeter-scoped, like consents", async () => {
-    // WITH CHECK carries can_see_partner, so this is not KI-02/KI-03 again on a new table.
-    const roles = (await select(admin, "res_partner_role", "select=id&limit=1")).rows as any[];
+  test("a volunteer can assign a role on any contact, but the picklist stays closed", async () => {
+    // The perimeter came off contacts on 2026-09-17, so the assignment below is now
+    // legitimate — what must NOT follow is the picklist opening up with it. Editing
+    // res_partner_role is global reference data and stays admin/superuser.
+    // A named role, not "the first one PostgREST happens to return": this contact is a
+    // real record and may already carry roles assigned from the app, and the link table
+    // has a composite primary key — an accidental collision would read as a denial.
+    const roles = (await select(admin, "res_partner_role", "select=id,code")).rows as any[];
+    const roleId = roles.find((r) => r.code === "socio_aps").id;
+    const pair = `partner_id=eq.${FIXTURES.partnerOutOfScope}&role_id=eq.${roleId}`;
+    await remove(admin, "res_partner_role_rel", pair);
+
     const res = await insert(volunteer, "res_partner_role_rel", {
       partner_id: FIXTURES.partnerOutOfScope,
-      role_id: roles[0].id,
+      role_id: roleId,
     });
-    expect(wasDenied(res)).toBe(true);
+    expect(didAffectRows(res)).toBe(true);
+    await remove(admin, "res_partner_role_rel", pair);
+
+    expect(
+      wasDenied(await insert(volunteer, "res_partner_role", { code: `x_${Date.now()}`, name: "X" })),
+    ).toBe(true);
   });
 
   test("deleting a contact takes its role links with it", async () => {
@@ -161,7 +180,10 @@ describe("point 7 — roles arriving from the public form", () => {
       phone: "+390000010",
       city: "Varese",
       province: "VA",
-      role_codes: ["bussola", "membro_semplice", "questo_codice_non_esiste"],
+      // Two current codes plus a retired one. "bussola" is deliberate: it was a real
+      // code until 2026-09-17, so it is exactly what a WordPress form that nobody
+      // updated would still be posting.
+      role_codes: ["attivista", "famiglia_ospitante", "bussola"],
     });
     if (res.status === 429) return;
     expect(res.status).toBe(200);
@@ -173,8 +195,10 @@ describe("point 7 — roles arriving from the public form", () => {
     );
     const codes = read.rows[0].res_partner_role_rel.map((x: any) => x.res_partner_role.code).sort();
     // The unknown code is dropped silently: the WordPress form is maintained by someone
-    // else and must not start failing when this list changes.
-    expect(codes).toEqual(["bussola", "membro_semplice"]);
+    // else and must not start failing when this list changes. The flip side, and the
+    // reason this is worth stating out loud: a form still posting the old codes loses
+    // those answers without an error anywhere.
+    expect(codes).toEqual(["attivista", "famiglia_ospitante"]);
   });
 });
 

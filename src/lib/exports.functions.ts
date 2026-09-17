@@ -1,14 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { applyPartnerFilters } from "@/lib/partner-filters";
+import { applyPartnerFilters, hasActiveCard } from "@/lib/partner-filters";
+import { PARTNER_STATUS, labelFor } from "@/lib/selections";
 
 // Same filter shape as listPartners, minus limit/offset: an export is meant to return
 // everything that matches, not one page of it.
 const ExportFilters = z
   .object({
     status: z.string().optional(),
-    partner_type: z.string().optional(),
+    role_ids: z.array(z.string().uuid()).optional(),
     category_id: z.string().uuid().optional(),
     city_id: z.string().uuid().optional(),
     province_code: z.string().optional(),
@@ -18,17 +19,31 @@ const ExportFilters = z
   })
   .default({});
 
+// The file carries every field the contact record holds, not the subset the table shows:
+// a CSV is what people work in once it leaves here, and a missing column means going back
+// to the app record by record. "tesserato" is derived, not stored — it is the same
+// question the list answers with a tick, resolved for the current year.
 const COLUMNS = [
+  "id",
   "nome",
   "cognome",
+  "nome_completo",
   "email",
   "telefono",
   "cellulare",
   "città",
   "provincia",
+  "città_dichiarata",
+  "provincia_dichiarata",
   "stato",
   "gruppi",
+  "ruoli",
+  "tesserato",
+  "numero_tessera",
+  "anno_tessera",
+  "note",
   "creato_il",
+  "aggiornato_il",
 ] as const;
 
 // Excel refuses to treat a leading "=", "+", "-" or "@" as text and evaluates it as a
@@ -48,6 +63,15 @@ export const exportContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
+    // The button is hidden for volunteers, but hiding is not a permission: this function
+    // is reachable over HTTP by anyone with a session. RLS still caps the rows to the
+    // caller's perimeter, so the check is about who may pull a file at all, not about
+    // what ends up in it.
+    const { data: caller } = await supabase.from("res_users").select("role").eq("id", userId).maybeSingle();
+    if (!caller || !["admin", "superuser", "coordinator"].includes(caller.role)) {
+      throw new Error("Non autorizzato");
+    }
+
     // Paged so the export is complete. The previous client-side version serialised
     // whatever the contacts table had already loaded (100 rows by default), which
     // silently produced a truncated file — the worst kind of bug, because the result
@@ -57,16 +81,16 @@ export const exportContacts = createServerFn({ method: "POST" })
       let q = supabase
         .from("res_partner")
         .select(
-          `first_name, last_name, email, phone, mobile, status, partner_type, raw_city, raw_province, city_id, created_at,
+          `id, first_name, last_name, display_name, email, phone, mobile, status, raw_city, raw_province, city_id, notes, created_at, updated_at,
            res_city(name, province_code),
            res_partner_category_rel(category_id, res_partner_category(name)),
-           membership_subscription(year, status)`,
+           res_partner_role_rel(role_id, res_partner_role(name, sort_order)),
+           membership_subscription(membership_number, year, status)`,
         )
         .order("created_at", { ascending: false })
         .range(offset, offset + PAGE - 1);
 
       if (data.status) q = q.eq("status", data.status);
-      if (data.partner_type) q = q.eq("partner_type", data.partner_type);
       if (data.city_id) q = q.eq("city_id", data.city_id);
       if (data.search) {
         const s = `%${data.search}%`;
@@ -86,25 +110,47 @@ export const exportContacts = createServerFn({ method: "POST" })
     // would be worse than either being wrong on its own.
     const filtered = applyPartnerFilters(rows, data);
 
-    const body = filtered.map((r: any) =>
-      [
+    const year = new Date().getFullYear();
+
+    const body = filtered.map((r: any) => {
+      // The card that makes them "tesserato" — active, current year. Not simply the most
+      // recent one: a replaced card stays on the record with status revoked.
+      const card = (r.membership_subscription ?? []).find(
+        (sub: any) => sub.year === year && sub.status === "active",
+      );
+      return [
+        r.id,
         r.first_name,
         r.last_name,
+        r.display_name,
         r.email,
         r.phone,
         r.mobile,
         r.res_city?.name ?? r.raw_city,
         r.res_city?.province_code ?? r.raw_province,
-        r.status,
+        r.raw_city,
+        r.raw_province,
+        labelFor(PARTNER_STATUS, r.status),
         (r.res_partner_category_rel ?? [])
           .map((rel: any) => rel.res_partner_category?.name)
           .filter(Boolean)
           .join(" | "),
+        (r.res_partner_role_rel ?? [])
+          .slice()
+          .sort((a: any, b: any) => (a.res_partner_role?.sort_order ?? 0) - (b.res_partner_role?.sort_order ?? 0))
+          .map((rel: any) => rel.res_partner_role?.name)
+          .filter(Boolean)
+          .join(" | "),
+        hasActiveCard(r, year) ? "Sì" : "No",
+        card?.membership_number ?? "",
+        card?.year ?? "",
+        r.notes,
         r.created_at,
+        r.updated_at,
       ]
         .map(csvCell)
-        .join(","),
-    );
+        .join(",");
+    });
 
     const csv = [COLUMNS.join(","), ...body].join("\r\n");
 

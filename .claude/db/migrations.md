@@ -12,7 +12,7 @@ the three original Lovable migrations from 2026-06-27
 there.** Lovable does not know they exist, which is why a schema regeneration by the agent
 can silently undo them, and why `bun test` must be re-run afterwards.
 
-## Applied status — verified against the live DB, 2026-08-06
+## Applied status — verified against the live DB, 2026-09-17
 
 | File | Applied | Verified by |
 |---|---|---|
@@ -27,16 +27,23 @@ can silently undo them, and why `bun test` must be re-run afterwards.
 | `20260725200000_security_scan_fixes` | ⚠️ **partial** | rate limit ✅ · `audit_no_update`/`audit_no_delete` RESTRICTIVE ✅ · `users_update WITH CHECK` ✅ · `_uid` guards in helpers ✅ · its 7 `REVOKE`s never took effect — superseded by `20260806120000` |
 | `20260806120000_close_authz_holes` | ✅ full | `anon` executes only `submit_public_contact` (checked in `pg_proc.proacl`) · `rucr_mod` and `sub_mod` `WITH CHECK` carry the perimeter · `trg_sub_membership_number` present. All three exploits re-run against production and refused |
 | `20260806140000_partner_roles_and_membership_claim` | ✅ full | `res_partner_role` (5 seeded) + `res_partner_role_rel` with perimeter-scoped RLS · `submit_public_contact` has `p_role_codes` and `p_membership_number`, exactly 1 overload · all four membership branches proved in a cancelled transaction |
+| `20260917150000_open_contacts_profile_hierarchy_cards` | ✅ full | the five new role codes read back in `sort_order` · all five test accounts count 8/8 contacts through PostgREST, `noscope` included · hierarchy probed account by account with real tokens, peer case included · `expire_memberships` proved in a cancelled transaction · `cron.job` holds `expire-memberships` at `2 0 * * *` · `membership_subscription_membership_number_key` gone, `idx_sub_membership_number` present · `bun test` 107/107 with the dev server up |
 
 ## Can the files be deleted?
 
-**No.** All ten are applied, but deleting them would throw away the only record that these
+**No.** All eleven are applied, but deleting them would throw away the only record that these
 changes exist — Lovable's changelog does not have them, and `schema_migrations` does not
 either. They are the recovery script for the day an agent regenerates the schema.
 
 `20260725200000` stays even though `20260806120000` supersedes its revoke section: the
 rest of it (rate limit, RESTRICTIVE audit policies, `_uid` guards) is still the only
 record of those changes.
+
+The same now applies to `20260806140000`: `20260917150000` renames its role codes and
+`20260725130000`/`140000` describe a `can_see_partner` that no longer discriminates. Read
+the files in date order — each one is a record of what was true when it ran, not a
+description of the current schema. The current schema is [schema.md](schema.md) and
+[rls.md](rls.md).
 
 Keep them. Add new ones with the same convention: timestamped filename, a header comment
 saying what was applied, when, by which route, and why.

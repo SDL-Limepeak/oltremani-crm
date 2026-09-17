@@ -107,21 +107,123 @@ export const upsertCategory = createServerFn({ method: "POST" })
     return row;
   });
 
-export const deleteCategory = createServerFn({ method: "POST" })
+/**
+ * What deleting a group would disturb: how many contacts are in it, and how many groups
+ * would be left without a parent.
+ *
+ * Asked before the confirmation dialog opens. The contact count is the one that decides
+ * whether the delete is allowed at all — see deleteCategory.
+ */
+export const categoryDeletionImpact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+
+    const { data: rels } = await supabase
+      .from("res_partner_category_rel")
+      .select("partner_id, res_partner(display_name)")
+      .eq("category_id", data.id);
+
+    const { data: children } = await supabase
+      .from("res_partner_category")
+      .select("id, name")
+      .eq("parent_id", data.id);
+
+    const { data: users } = await supabase
+      .from("res_user_category_rel")
+      .select("user_id")
+      .eq("category_id", data.id);
+
+    return {
+      contacts: (rels ?? []).length,
+      // A few names make the dialog concrete without turning it into a list screen.
+      sample: (rels ?? [])
+        .map((r: any) => r.res_partner?.display_name)
+        .filter(Boolean)
+        .slice(0, 5) as string[],
+      children: (children ?? []).map((c: any) => c.name as string),
+      users: (users ?? []).length,
+    };
+  });
+
+export const deleteCategory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        /** Where the members go. Required when the group has any; ignored when empty. */
+        reassign_to_id: z.string().uuid().nullable().optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
     // Read before deleting: the row is gone afterwards and this is the more
     // consequential half of the operation. Deleting a group cascades to
-    // res_partner_category_rel, so every contact in it drops out of whoever's
-    // perimeter it was in — and until now that left no trace at all.
+    // res_partner_category_rel, so every contact in it silently loses that assignment.
     const { data: old } = await supabase
       .from("res_partner_category")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
+
+    const { data: rels } = await supabase
+      .from("res_partner_category_rel")
+      .select("partner_id")
+      .eq("category_id", data.id);
+    const memberIds = (rels ?? []).map((r: any) => r.partner_id as string);
+
+    // The rule the client asked for: a group with members cannot simply evaporate, the
+    // members have to be told where to go. An empty group deletes with no question.
+    if (memberIds.length && !data.reassign_to_id) {
+      throw new Error(
+        `Il gruppo ha ${memberIds.length} ${memberIds.length === 1 ? "contatto" : "contatti"}: scegli il gruppo in cui spostarli prima di eliminarlo.`,
+      );
+    }
+    if (data.reassign_to_id === data.id) {
+      throw new Error("Il gruppo di destinazione non può essere quello che stai eliminando");
+    }
+
+    let reassigned = 0;
+    if (memberIds.length && data.reassign_to_id) {
+      const { data: target } = await supabase
+        .from("res_partner_category")
+        .select("id, name")
+        .eq("id", data.reassign_to_id)
+        .maybeSingle();
+      if (!target) throw new Error("Gruppo di destinazione non trovato");
+
+      // Before the delete, not after: the cascade would already have removed the rows
+      // that say who was in here. ON CONFLICT is not available through PostgREST, so
+      // contacts already in the target are filtered out by hand — inserting a duplicate
+      // would fail the whole batch on the composite primary key.
+      const { data: already } = await supabase
+        .from("res_partner_category_rel")
+        .select("partner_id")
+        .eq("category_id", data.reassign_to_id)
+        .in("partner_id", memberIds);
+      const have = new Set((already ?? []).map((r: any) => r.partner_id as string));
+      const toInsert = memberIds.filter((id) => !have.has(id));
+
+      if (toInsert.length) {
+        const { error: insErr } = await supabase
+          .from("res_partner_category_rel")
+          .insert(toInsert.map((pid) => ({ partner_id: pid, category_id: data.reassign_to_id! })));
+        if (insErr) throw insErr;
+      }
+      reassigned = memberIds.length;
+
+      await supabase.from("audit_log").insert({
+        log_type: "record_change", action: "update", model_name: "res_partner_category_rel",
+        record_id: data.id,
+        old_values_json: { category_id: data.id, partner_ids: memberIds },
+        new_values_json: { moved_to: target.id, moved_to_name: target.name, count: reassigned },
+        changed_by_user_id: userId, source: "ui",
+      });
+    }
 
     const { data: deleted, error } = await supabase
       .from("res_partner_category")
@@ -135,7 +237,9 @@ export const deleteCategory = createServerFn({ method: "POST" })
 
     await supabase.from("audit_log").insert({
       log_type: "record_change", action: "delete", model_name: "res_partner_category",
-      record_id: data.id, old_values_json: old, changed_by_user_id: userId, source: "ui",
+      record_id: data.id, old_values_json: old,
+      new_values_json: { reassigned_to: data.reassign_to_id ?? null, contacts_moved: reassigned },
+      changed_by_user_id: userId, source: "ui",
     });
-    return { ok: true };
+    return { ok: true, reassigned };
   });

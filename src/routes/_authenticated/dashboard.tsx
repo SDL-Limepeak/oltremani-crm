@@ -16,12 +16,6 @@ const STATUS_LABEL: Record<string, string> = {
   new: "Nuovo", active: "Attivo", rejected: "Rifiutato", old: "Storico",
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  activist: "#E8921E",
-  citizen: "#1E3271",
-  individual: "#94a3b8",
-};
-
 const GROUP_PALETTE = [
   "#1E3271", "#2d4a9e", "#3b63ca", "#5480d8", "#7da0e4",
   "#a8c0ef", "#E8921E", "#f5aa55", "#fac88c", "#c8d9f7",
@@ -121,9 +115,9 @@ function DashboardPage() {
     queryFn: () => getDashboardStats(),
   });
 
-  const ptStats = data?.partnerTypeStats ?? [];
-  const ptTotal = ptStats.reduce((s: number, d: any) => s + d.value, 0);
-  const cgStats = data?.citizensByGroup ?? [];
+  const roleStats = data?.partnerRoleStats ?? [];
+  const roleTotal = roleStats.reduce((s: number, d: any) => s + d.value, 0);
+  const cgStats = data?.contactsByGroup ?? [];
   const cgTotal = cgStats.reduce((s: number, d: any) => s + d.value, 0);
 
   return (
@@ -138,29 +132,33 @@ function DashboardPage() {
       {/* Pie charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <Card className="p-6 rounded-2xl border-0 shadow-sm">
-          <h3 className="font-serif text-lg mb-1">Attivisti e Cittadini</h3>
-          <p className="text-xs text-muted-foreground mb-3">Distribuzione per tipo — passa per vedere lo stato</p>
+          <h3 className="font-serif text-lg mb-1">Contatti per ruolo</h3>
+          {/* Said out loud because the slices deliberately do not add up to the contact
+              count: a contact with two roles appears in both. */}
+          <p className="text-xs text-muted-foreground mb-3">Un contatto può avere più ruoli — passa per vedere lo stato</p>
           {isLoading ? (
             <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Caricamento…</div>
-          ) : ptStats.length === 0 ? (
+          ) : roleStats.length === 0 ? (
             <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Nessun dato</div>
           ) : (
             <DonutChart
-              data={ptStats}
-              total={ptTotal}
-              colors={(entry) => TYPE_COLORS[entry.type] ?? "#ccc"}
+              data={roleStats}
+              total={roleTotal}
+              colors={(entry, index) =>
+                entry.name === "Senza ruolo" ? "#94a3b8" : GROUP_PALETTE[index % GROUP_PALETTE.length]
+              }
               tooltip={<Tooltip content={<TypeTooltip />} />}
             />
           )}
         </Card>
 
         <Card className="p-6 rounded-2xl border-0 shadow-sm">
-          <h3 className="font-serif text-lg mb-1">Cittadini per gruppo</h3>
+          <h3 className="font-serif text-lg mb-1">Contatti per gruppo</h3>
           <p className="text-xs text-muted-foreground mb-3">Distribuzione per gruppo territoriale</p>
           {isLoading ? (
             <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Caricamento…</div>
           ) : cgStats.length === 0 ? (
-            <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Nessun cittadino registrato</div>
+            <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Nessun contatto registrato</div>
           ) : (
             <DonutChart
               data={cgStats}

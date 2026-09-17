@@ -8,28 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listPartners } from "@/lib/partners.functions";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { listPartners, listPartnerRoles } from "@/lib/partners.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { exportContacts } from "@/lib/exports.functions";
 import { ValidationDialog } from "@/components/validation-dialog";
-import { needsTriage } from "@/lib/partner-filters";
-import { PARTNER_STATUS, PARTNER_STATUS_LABEL, PARTNER_TYPE, PARTNER_TYPE_LABEL } from "@/lib/selections";
+import { hasActiveCard, needsTriage } from "@/lib/partner-filters";
+import { PARTNER_STATUS, PARTNER_STATUS_LABEL } from "@/lib/selections";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { Plus, Download, AlertCircle, HeartHandshake, Home, UserRound } from "lucide-react";
+import { Plus, Download, AlertCircle, Check, X, ChevronDown } from "lucide-react";
 
-const STATUS_ORDER: Record<string, number> = {
-  new: 0, active: 1, rejected: 2, old: 3,
-};
+// Mirrors the order of PARTNER_STATUS in selections.ts — derived from it rather than
+// repeated, so the dropdown and the list sort cannot drift apart.
+const STATUS_ORDER: Record<string, number> = Object.fromEntries(
+  PARTNER_STATUS.map((o, i) => [o.value, i]),
+);
 
-function PartnerTypeIcon({ type }: { type?: string }) {
-  // Tooltips read from the shared selection map, so a relabel cannot leave the icons
-  // saying "Attivista" while the dropdown says "Dà supporto".
-  if (type === "activist")
-    return <span title={PARTNER_TYPE_LABEL.activist}><HeartHandshake className="h-4 w-4 flex-shrink-0 text-[#E8921E]" /></span>;
-  if (type === "citizen")
-    return <span title={PARTNER_TYPE_LABEL.citizen}><Home className="h-4 w-4 flex-shrink-0 text-[#1E3271]" /></span>;
-  return <span title={PARTNER_TYPE_LABEL.individual}><UserRound className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" /></span>;
-}
 const STATUS_TONE: Record<string, string> = {
   new: "bg-blue-100 text-blue-900",
   active: "bg-emerald-100 text-emerald-900",
@@ -45,8 +41,8 @@ export const Route = createFileRoute("/_authenticated/contacts/")({
 
 function ContactsPage() {
   const { profile } = useAuthUser();
-  const isAdmin = profile?.role === "admin";
-  const [filters, setFilters] = useState<{ status?: string; partner_type?: string; category_id?: string; year?: number; has_active_sub?: boolean; search?: string }>({});
+  const canExport = profile?.role === "admin" || profile?.role === "superuser" || profile?.role === "coordinator";
+  const [filters, setFilters] = useState<{ status?: string; role_ids?: string[]; category_id?: string; year?: number; has_active_sub?: boolean; search?: string }>({});
   const [exporting, setExporting] = useState(false);
   // The contact currently being triaged, or null. Opens ValidationDialog, which is the
   // one place that assigns the city, swaps Validation for the territorial group and
@@ -54,6 +50,25 @@ function ContactsPage() {
   const [validating, setValidating] = useState<{ id: string; city?: string; province?: string } | null>(null);
 
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const { data: roles } = useQuery({ queryKey: ["partner-roles"], queryFn: () => listPartnerRoles() });
+
+  const currentYear = new Date().getFullYear();
+
+  const selectedRoles = filters.role_ids ?? [];
+  function toggleRole(id: string) {
+    const next = selectedRoles.includes(id)
+      ? selectedRoles.filter((x) => x !== id)
+      : [...selectedRoles, id];
+    // undefined rather than [], so "nothing ticked" takes the fast SQL path instead of
+    // the full scan an empty-array filter would still trigger.
+    setFilters({ ...filters, role_ids: next.length ? next : undefined });
+  }
+  const roleLabel =
+    selectedRoles.length === 0
+      ? "Tutti i ruoli"
+      : selectedRoles.length === 1
+        ? roles?.find((r) => r.id === selectedRoles[0])?.name ?? "1 ruolo"
+        : `${selectedRoles.length} ruoli`;
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["partners", filters],
     queryFn: () => listPartners({ data: filters as any }),
@@ -93,7 +108,7 @@ function ContactsPage() {
       subtitle="Gestisci la rubrica e le iscrizioni"
       actions={
         <div className="flex gap-2">
-          {isAdmin && (
+          {canExport && (
             <Button variant="outline" onClick={exportCsv} disabled={exporting}>
               <Download className="h-4 w-4 mr-2" />
               {exporting ? "Esportazione…" : "Esporta CSV"}
@@ -113,13 +128,33 @@ function ContactsPage() {
               {PARTNER_STATUS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filters.partner_type ?? "all"} onValueChange={v => setFilters({ ...filters, partner_type: v === "all" ? undefined : v })}>
-            <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i tipi</SelectItem>
-              {PARTNER_TYPE.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* Replaces the old "Tipo" select. Multiple, and OR across the picks. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="justify-between font-normal h-10 px-3 border-input bg-background hover:bg-background"
+              >
+                <span className={selectedRoles.length ? "" : "text-muted-foreground"}>{roleLabel}</span>
+                <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              {(roles ?? []).map((r) => (
+                <DropdownMenuCheckboxItem
+                  key={r.id}
+                  checked={selectedRoles.includes(r.id)}
+                  onCheckedChange={() => toggleRole(r.id)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {r.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+              {!roles?.length && (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">Nessun ruolo configurato</div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Select value={filters.category_id ?? "all"} onValueChange={v => setFilters({ ...filters, category_id: v === "all" ? undefined : v })}>
             <SelectTrigger><SelectValue placeholder="Gruppo" /></SelectTrigger>
             <SelectContent>
@@ -148,18 +183,18 @@ function ContactsPage() {
                 <th className="p-4 hidden md:table-cell">Città</th>
                 <th className="p-4 hidden md:table-cell">Gruppi</th>
                 <th className="p-4">Stato</th>
+                <th className="p-4 text-center">Tesserato</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <tr><td className="p-6 text-muted-foreground" colSpan={5}>Caricamento…</td></tr>}
-              {!isLoading && rows.length === 0 && <tr><td className="p-6 text-muted-foreground" colSpan={5}>Nessun contatto trovato.</td></tr>}
+              {isLoading && <tr><td className="p-6 text-muted-foreground" colSpan={6}>Caricamento…</td></tr>}
+              {!isLoading && rows.length === 0 && <tr><td className="p-6 text-muted-foreground" colSpan={6}>Nessun contatto trovato.</td></tr>}
               {rows.map((r: any) => {
                 const noGroup = !r.res_partner_category_rel || r.res_partner_category_rel.length === 0;
                 return (
                   <tr key={r.id} className={`border-t border-border/40 hover:bg-muted/30 ${noGroup ? "bg-orange-50/40" : ""}`}>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <PartnerTypeIcon type={r.partner_type} />
                         <Link to="/contacts/$id" params={{ id: r.id }} className="font-medium hover:underline">
                           {r.display_name || `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || "—"}
                         </Link>
@@ -200,6 +235,21 @@ function ContactsPage() {
                     </td>
                     <td className="p-4">
                       <Badge className={`rounded-full ${STATUS_TONE[r.status] ?? ""}`}>{PARTNER_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    </td>
+                    <td className="p-4">
+                      {/* Answered by the same helper the CSV uses, so the tick and the
+                          exported "tesserato" column can never disagree. */}
+                      <div className="flex justify-center">
+                        {hasActiveCard(r) ? (
+                          <span title={`Tessera attiva per il ${currentYear}`}>
+                            <Check className="h-4 w-4 text-emerald-600" />
+                          </span>
+                        ) : (
+                          <span title={`Nessuna tessera attiva per il ${currentYear}`}>
+                            <X className="h-4 w-4 text-rose-600" />
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -42,30 +42,34 @@ afterAll(async () => {
   await remove(admin, "res_partner_category", `name=like.${TEST_TAG}-*`);
 });
 
-describe("contact visibility is derived from categories", () => {
-  test("admin and superuser see every contact", async () => {
-    expect(await count(admin, "res_partner")).toBeGreaterThanOrEqual(8);
-    expect(await count(superuser, "res_partner")).toBe(await count(admin, "res_partner"));
-  });
-
-  test("coordinator and volunteer see only their perimeter", async () => {
+describe("contact visibility — open to every user since 2026-09-17", () => {
+  /**
+   * This block used to assert the opposite: visibility came from res_partner_category_rel,
+   * a coordinator saw one contact and a user with no group saw none. The client removed
+   * the perimeter on 2026-09-17 — every active user now reads and writes every contact.
+   *
+   * The tests are kept rather than deleted because "everyone sees everything" is a claim
+   * that needs holding just as much as the old one did, and because the group perimeter
+   * still exists as data: if a future change re-links can_see_partner to the categories by
+   * accident, the volunteer and noscope counts are where it shows up first.
+   */
+  test("every role sees the same contacts, admin included", async () => {
     const all = await count(admin, "res_partner");
-    for (const s of [coordinator, volunteer]) {
-      const visible = await count(s, "res_partner");
-      expect(visible).toBeGreaterThan(0);
-      expect(visible).toBeLessThan(all);
+    expect(all).toBeGreaterThanOrEqual(8);
+    for (const s of [superuser, coordinator, volunteer, noscope]) {
+      expect(await count(s, "res_partner")).toBe(all);
     }
   });
 
-  test("a user with no group sees no contacts at all", async () => {
-    // Not a quirk: visibility comes entirely from res_partner_category_rel, so a user
-    // with an empty perimeter is correctly shown nothing.
-    expect(await count(noscope, "res_partner")).toBe(0);
+  test("a user with no group at all still sees every contact", async () => {
+    // The case that proves the perimeter is gone rather than merely widened: this account
+    // has no row in res_user_category_rel.
+    expect(await count(noscope, "res_partner")).toBe(await count(admin, "res_partner"));
   });
 
-  test("an out-of-perimeter contact is invisible, not just filtered by the UI", async () => {
+  test("a contact outside the old perimeter is readable", async () => {
     const r = await select(volunteer, "res_partner", `select=id&id=eq.${FIXTURES.partnerOutOfScope}`);
-    expect(r.rows).toHaveLength(0);
+    expect(r.rows).toHaveLength(1);
   });
 });
 
@@ -102,21 +106,25 @@ describe("modifying and deleting contacts", () => {
     const id = seed.rows[0].id;
     created.partners.push(id);
 
-    // The volunteer cannot even see it, so the DELETE matches nothing: 204, zero rows.
+    // Sharper than it used to be. Before 2026-09-17 these two were refused because they
+    // could not see the row; now they can see it and edit it, and the DELETE is still
+    // refused — which is the actual rule, and the only way to tell the two apart.
     expect(didAffectRows(await remove(volunteer, "res_partner", `id=eq.${id}`))).toBe(false);
     expect(didAffectRows(await remove(coordinator, "res_partner", `id=eq.${id}`))).toBe(false);
     expect(didAffectRows(await remove(admin, "res_partner", `id=eq.${id}`))).toBe(true);
     created.partners = created.partners.filter((x) => x !== id);
   });
 
-  test("a volunteer cannot edit a contact outside its perimeter", async () => {
+  test("a volunteer can now edit any contact", async () => {
     const res = await update(
       volunteer,
       "res_partner",
       `id=eq.${FIXTURES.partnerOutOfScope}`,
-      { notes: `${TEST_TAG} should never land` },
+      { notes: `${TEST_TAG} volunteer edit` },
     );
-    expect(didAffectRows(res)).toBe(false);
+    expect(didAffectRows(res)).toBe(true);
+    // Put it back: this is a real contact in the client's database, not a fixture.
+    await update(admin, "res_partner", `id=eq.${FIXTURES.partnerOutOfScope}`, { notes: null });
   });
 });
 

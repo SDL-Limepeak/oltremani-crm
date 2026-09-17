@@ -169,24 +169,24 @@
           <div class="privacy-group">
             <label>Cosa ti piacerebbe fare? <small>(puoi scegliere più di una voce)</small></label>
             <label class="check-row">
+              <input type="checkbox" name="role" value="attivista" />
+              <span>Attivista</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="socio_aps" />
+              <span>Socio APS</span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="role" value="membro_comunita" />
+              <span>Membro della comunità</span>
+            </label>
+            <label class="check-row">
               <input type="checkbox" name="role" value="famiglia_ospitante" />
               <span>Famiglia ospitante</span>
             </label>
             <label class="check-row">
-              <input type="checkbox" name="role" value="specialista_abitare" />
-              <span>Specialista diritti sull'abitare</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="role" value="specialista_migrazione" />
-              <span>Specialista diritti sulla migrazione</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="role" value="membro_semplice" />
-              <span>Membro semplice della comunità</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="role" value="bussola" />
-              <span>Bussola</span>
+              <input type="checkbox" name="role" value="specialista_diritti" />
+              <span>Specialista di diritti sulle migrazioni e/o abitare</span>
             </label>
           </div>
         </div>
@@ -210,20 +210,6 @@
               <span>
                 Ho letto e accetto l'<a href="#" style="color:var(--orange)">Informativa sulla Privacy</a> *
                 <small class="required-note">Campo obbligatorio</small>
-              </span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="newsletter" />
-              <span>
-                Acconsento alla ricezione della newsletter Oltremani
-                <small>Comunicazioni su eventi, attività e aggiornamenti</small>
-              </span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="marketing" />
-              <span>
-                Acconsento al trattamento per finalità di marketing
-                <small>Promozioni e offerte commerciali</small>
               </span>
             </label>
           </div>
@@ -445,10 +431,11 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
     // API names, not labels — see res_partner_role.code.
     role_codes: [...f.querySelectorAll('input[name="role"]:checked')].map(i => i.value),
     membership_number: f.membership_number.value.trim() || null,
+    // Only the primary purpose since 2026-09-17. The two secondary ones (newsletter,
+    // marketing) were dropped; submit_public_contact ignores them if anything still
+    // sends them.
     privacy_consents: [
       { consent_type: "privacy_policy", accepted: f.privacy_policy.checked, version: "1.0" },
-      { consent_type: "newsletter",     accepted: f.newsletter.checked,     version: "1.0" },
-      { consent_type: "marketing",      accepted: f.marketing.checked,      version: "1.0" },
     ],
   };
 

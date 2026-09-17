@@ -136,13 +136,23 @@ describe("KI-02 — a coordinator can no longer widen its own perimeter (FIXED)"
   });
 });
 
-describe("KI-03 — membership cards are perimeter-scoped on INSERT too (FIXED)", () => {
-  test("a coordinator cannot create a card for a contact it cannot see", async () => {
+describe("KI-03 — membership cards are role-gated on INSERT too (FIXED)", () => {
+  /**
+   * The original finding was that sub_mod carried the perimeter in USING but not in
+   * WITH CHECK, so a coordinator could issue a card to a contact outside its groups.
+   *
+   * The perimeter itself was removed on 2026-09-17 — a coordinator legitimately reaches
+   * every contact now — so the half of sub_mod that still bites is the role list:
+   * admin, superuser and coordinator may touch cards, a volunteer may not. That is what
+   * these tests hold, and the shape of the original bug (a WITH CHECK that forgot what
+   * USING said) is exactly what a volunteer INSERT would expose.
+   */
+  test("a volunteer cannot create a card at all", async () => {
     const before = await count(admin, "membership_subscription");
 
     // return=minimal is the shape that used to hide this: with return=representation
     // the readback tripped sub_select and it looked like a plain error.
-    const res = await insertBlind(coordinator, "membership_subscription", {
+    const res = await insertBlind(volunteer, "membership_subscription", {
       partner_id: FIXTURES.partnerOutOfScope,
       year: 2033,
       status: "active",
@@ -152,7 +162,7 @@ describe("KI-03 — membership cards are perimeter-scoped on INSERT too (FIXED)"
     expect(await count(admin, "membership_subscription")).toBe(before);
   });
 
-  test("a coordinator can still create one inside its perimeter", async () => {
+  test("a coordinator can create one for any contact", async () => {
     const res = await insert(coordinator, "membership_subscription", {
       partner_id: FIXTURES.partnerInScope,
       year: 2038,
@@ -163,7 +173,18 @@ describe("KI-03 — membership cards are perimeter-scoped on INSERT too (FIXED)"
     await remove(admin, "membership_subscription", `id=eq.${res.rows[0].id}`);
   });
 
-  test("UPDATE and DELETE stay scoped, as they already were", async () => {
+  test("including one that used to be outside its perimeter", async () => {
+    const res = await insert(coordinator, "membership_subscription", {
+      partner_id: FIXTURES.partnerOutOfScope,
+      year: 2039,
+      status: "active",
+      notes: "KI03c-PROBE",
+    });
+    expect(didAffectRows(res)).toBe(true);
+    await remove(admin, "membership_subscription", `id=eq.${res.rows[0].id}`);
+  });
+
+  test("UPDATE and DELETE stay closed to a volunteer", async () => {
     const seeded = await insert(admin, "membership_subscription", {
       partner_id: FIXTURES.partnerOutOfScope,
       year: 2034,
@@ -171,7 +192,10 @@ describe("KI-03 — membership cards are perimeter-scoped on INSERT too (FIXED)"
       notes: "KI03b-PROBE",
     });
     const id = seeded.rows[0].id;
-    expect(didAffectRows(await remove(coordinator, "membership_subscription", `id=eq.${id}`))).toBe(false);
+    expect(didAffectRows(await remove(volunteer, "membership_subscription", `id=eq.${id}`))).toBe(false);
+    expect(
+      didAffectRows(await update(volunteer, "membership_subscription", `id=eq.${id}`, { status: "active" })),
+    ).toBe(false);
     await remove(admin, "membership_subscription", `id=eq.${id}`);
   });
 });

@@ -34,6 +34,32 @@ async function requireUserManager(supabase: any, userId: string) {
   return callerRow.role as string;
 }
 
+/**
+ * The profile hierarchy, mirroring public.role_rank / public.can_manage_user in the
+ * database. Two copies of a rule is a liability, so they are named the same and changed
+ * together: the SQL one governs anything reaching PostgREST directly, this one governs
+ * the supabaseAdmin writes below, which RLS never sees.
+ *
+ *   admin > superuser > coordinator > volunteer
+ *
+ * You act on profiles strictly below your own; admin acts on anyone. A volunteer
+ * therefore manages nobody, including other volunteers.
+ */
+const ROLE_RANK: Record<string, number> = {
+  admin: 4, superuser: 3, coordinator: 2, volunteer: 1,
+};
+
+function canManage(callerRole: string, targetRole: string): boolean {
+  if (callerRole === "admin") return true;
+  return (ROLE_RANK[callerRole] ?? 0) > (ROLE_RANK[targetRole] ?? 0);
+}
+
+function assertCanManage(callerRole: string, targetRole: string) {
+  if (!canManage(callerRole, targetRole)) {
+    throw new Error("Non autorizzato a gestire un utente con questo profilo");
+  }
+}
+
 export const upsertUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => UserInput.parse(d))
@@ -42,29 +68,21 @@ export const upsertUser = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const callerRole = await requireUserManager(supabase, userId);
-    const isElevated = callerRole === "admin" || callerRole === "superuser";
 
-    // A coordinator manages its own team, not its peers or its superiors: without this
-    // it could mint a superuser account (or promote a volunteer into one) and escalate.
-    if (!isElevated) {
-      if (data.role === "superuser") {
-        throw new Error("Solo admin o superuser possono creare utenti superuser");
-      }
-      if (data.id) {
-        const { data: target } = await supabaseAdmin
-          .from("res_users").select("role").eq("id", data.id).maybeSingle();
-        if (target && !["volunteer", "coordinator"].includes(target.role)) {
-          throw new Error("Non autorizzato a modificare questo utente");
-        }
-      }
-      // ...and it can only hand out groups it can see itself.
-      const { data: visible } = await (supabase as any).rpc("visible_category_ids", { _uid: userId });
-      const allowed = new Set((visible ?? []).map((v: any) => (typeof v === "string" ? v : v.visible_category_ids)));
-      const outOfScope = data.category_ids.filter((c) => !allowed.has(c));
-      if (outOfScope.length) {
-        throw new Error("Non autorizzato ad assegnare gruppi fuori dal proprio perimetro");
-      }
+    // The profile being written has to be below the caller's, or a coordinator could mint
+    // a superuser account and escalate in one call.
+    assertCanManage(callerRole, data.role);
+
+    // ...and so does the profile being overwritten, or the same coordinator could take
+    // over a superuser's account by writing a lower role onto it.
+    if (data.id) {
+      const { data: target } = await supabaseAdmin
+        .from("res_users").select("role").eq("id", data.id).maybeSingle();
+      if (target) assertCanManage(callerRole, target.role);
     }
+
+    // Groups no longer restrict what a user can see (2026-09-17), so they are a label on
+    // the user rather than a permission and anyone managing the user may set them.
 
     let uid = data.id;
     if (!uid) {
@@ -132,12 +150,12 @@ export const deleteUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // This used to check nothing but the target's role, and it deletes through
-    // supabaseAdmin: any authenticated user, volunteer included, could wipe out any
-    // non-admin account. Deleting people is an admin/superuser action only.
+    // Deleting is now admin-only: everyone else disables instead (setUserStatus below).
+    // The check lives here because the write goes through supabaseAdmin and never meets
+    // the users_delete policy.
     const callerRole = await requireUserManager(context.supabase, context.userId);
-    if (!["admin", "superuser"].includes(callerRole)) {
-      throw new Error("Solo admin o superuser possono eliminare utenti");
+    if (callerRole !== "admin") {
+      throw new Error("Solo un admin può eliminare un utente. Puoi disabilitarlo.");
     }
 
     const { data: old } = await supabaseAdmin.from("res_users").select("role").eq("id", data.id).maybeSingle();
@@ -165,5 +183,43 @@ export const updateProfile = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("res_users").update({ name: data.name }).eq("id", context.userId);
     if (error) throw error;
+    return { ok: true };
+  });
+
+/**
+ * Disable or re-enable a user. This is what replaced "elimina" for everyone except admin:
+ * an inactive profile cannot pass current_role_name(), so every policy that asks for a
+ * role stops answering for them — they are locked out without the account, its history or
+ * its audit trail going anywhere.
+ */
+export const setUserStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const callerRole = await requireUserManager(context.supabase, context.userId);
+
+    if (data.id === context.userId) {
+      throw new Error("Non puoi disabilitare il tuo stesso account");
+    }
+
+    const { data: target } = await supabaseAdmin
+      .from("res_users").select("role, name, email, status").eq("id", data.id).maybeSingle();
+    if (!target) throw new Error("Utente non trovato");
+    if (target.role === "admin") throw new Error("Gli amministratori non possono essere disabilitati");
+    assertCanManage(callerRole, target.role);
+
+    const { error } = await supabaseAdmin
+      .from("res_users").update({ status: data.status }).eq("id", data.id);
+    if (error) throw error;
+
+    await context.supabase.from("audit_log").insert({
+      log_type: "user_change", action: "update", model_name: "res_users",
+      record_id: data.id, old_values_json: { status: target.status },
+      new_values_json: { status: data.status },
+      changed_by_user_id: context.userId, source: "ui",
+    });
     return { ok: true };
   });

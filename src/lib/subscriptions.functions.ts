@@ -8,8 +8,14 @@ const SubInput = z.object({
   year: z.number().int().min(2000).max(2100).optional(),
   start_date: z.string().optional(),
   end_date: z.string().nullable().optional(),
-  status: z.enum(["active", "inactive", "revoked"]).optional(),
+  // 'expired' is in the enum so a caller can read it back and send the row unchanged; it
+  // is set by the nightly job, not chosen from the UI.
+  status: z.enum(["active", "inactive", "revoked", "expired"]).optional(),
   notes: z.string().nullable().optional(),
+  // Cards are filled in by hand, so the number is whatever they write on the card. Left
+  // out (undefined) it keeps the generated one; the uniqueness that used to enforce this
+  // was dropped on 2026-09-17 and a duplicate is now flagged in the UI instead of refused.
+  membership_number: z.string().trim().max(32).nullable().optional(),
 });
 
 export const listSubscriptions = createServerFn({ method: "POST" })
@@ -53,11 +59,15 @@ export const upsertSubscription = createServerFn({ method: "POST" })
         end_date?: string | null;
         status?: string;
         notes?: string | null;
+        membership_number?: string | null;
       } = { updated_by: userId };
       if (data.year !== undefined) patch.year = data.year;
       if (data.start_date !== undefined) patch.start_date = data.start_date;
       if (data.end_date !== undefined) patch.end_date = data.end_date;
       if (data.status !== undefined) patch.status = data.status;
+      if (data.membership_number !== undefined) {
+        patch.membership_number = data.membership_number || null;
+      }
       if (data.notes !== undefined) patch.notes = data.notes;
 
       const { data: upd, error } = await supabase
@@ -74,10 +84,10 @@ export const upsertSubscription = createServerFn({ method: "POST" })
       });
     } else {
       const year = data.year ?? new Date().getFullYear();
-      // membership_number is filled by the trg_sub_membership_number trigger, which
-      // holds a transaction-scoped advisory lock while it reads the current maximum.
-      // Computing it here over a separate round-trip let two concurrent creates land
-      // on the same number and lose the race on the UNIQUE constraint.
+      // A number typed by hand wins. Left empty, the row goes in with NULL and the
+      // trg_sub_membership_number trigger fills it: it holds a transaction-scoped advisory
+      // lock while it reads the current maximum, which is why the value is not computed
+      // here over a separate round-trip.
       const payload = {
         partner_id: data.partner_id,
         year,
@@ -85,6 +95,7 @@ export const upsertSubscription = createServerFn({ method: "POST" })
         end_date: data.end_date ?? `${year}-12-31`,
         status: data.status ?? "active",
         notes: data.notes ?? null,
+        membership_number: data.membership_number || null,
         created_by: userId,
         updated_by: userId,
       };
@@ -121,4 +132,38 @@ export const revokeSubscription = createServerFn({ method: "POST" })
       record_id: data.id, old_values_json: old, new_values_json: upd, changed_by_user_id: userId, source: "ui",
     });
     return upd;
+  });
+
+/**
+ * The state of the number space: every number in use, and the ones sitting on more than
+ * one card.
+ *
+ * Both lists are needed and they answer different questions. `duplicated` is what the
+ * record page flags — a number that already went wrong. `used` is what the dialog checks
+ * while someone types, so they are warned *before* creating the duplicate rather than
+ * after; a number in use exactly once is not yet a duplicate but typing it again makes one.
+ *
+ * This exists at all because the UNIQUE constraint was dropped on 2026-09-17: numbers are
+ * written by hand on physical cards, so the register records what happened instead of
+ * refusing it.
+ */
+export const membershipNumberUsage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("membership_subscription")
+      .select("membership_number")
+      .not("membership_number", "is", null)
+      .limit(10_000);
+    if (error) throw error;
+
+    const seen = new Map<string, number>();
+    for (const row of (data ?? []) as any[]) {
+      const n = row.membership_number as string;
+      seen.set(n, (seen.get(n) ?? 0) + 1);
+    }
+    return {
+      used: [...seen.keys()],
+      duplicated: [...seen.entries()].filter(([, n]) => n > 1).map(([number]) => number),
+    };
   });
