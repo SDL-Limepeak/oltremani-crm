@@ -4,8 +4,8 @@ Read this file first, then load **only** the leaves you need. Leaves are self-co
 and do not repeat each other. Everything here is written in English; the product UI is
 Italian and stays Italian.
 
-Updated 2026-09-17 · verified against the live DB. The 2026-09-17 application code is
-**not committed and not published** — see "Current state" below.
+Updated 2026-09-17 · verified against the live DB and the code at commit `ee46f54`,
+which is also what is published.
 
 ## Router — task → file
 
@@ -54,14 +54,13 @@ Updated 2026-09-17 · verified against the live DB. The 2026-09-17 application c
 
 ## Current state — 2026-09-17
 
-- ⚠️ **The database is ahead of the published application.** The 2026-09-17 client changes
-  were applied to production Postgres directly (with the client's go-ahead) while the
-  matching application code sits uncommitted in the working tree. Until it is committed,
-  pushed and published, the live app at https://oltremani-crm.lovable.app is the 2026-08-06
-  build talking to the 2026-09-17 schema. That combination mostly works — the app reads the
-  role picklist from the table, so the new names already show — but "Tipo" is still on
-  screen, there is no Tesserato column, and the export is still admin-only and ten columns
-  wide. Check the published commit with `mcp__lovable__get_project.latest_commit_sha`.
+- Repo, `origin/main`, Lovable and the published build are all on `ee46f54`. The 2026-09-17
+  round is live at https://oltremani-crm.lovable.app; the schema changes behind it were
+  applied to production Postgres directly, with the client's go-ahead, and are recorded in
+  `supabase/migrations/20260917150000`. HEAD and the published build can still drift by a
+  docs-only commit — check the real one with `mcp__lovable__get_project.latest_commit_sha`,
+  and confirm it actually shipped by diffing `public/test-form.html` against the live copy,
+  which is served verbatim.
 - 11 tables, 30 RLS policies, 16 functions, 12 triggers, 1 pg_cron job. `tsc` clean,
   `bun test` 119/119 across nine files (with the dev server up, so the HTTP suites run).
 - **Contacts have no perimeter**: every active user reads and writes every contact.

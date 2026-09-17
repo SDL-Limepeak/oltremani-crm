@@ -164,8 +164,7 @@ wanted, tie it to an event: card activated, or validation completed.
 # Round two — 2026-09-17
 
 Given in chat while the 2026-08-06 build was live. The client approved writing to the
-production database directly, so **the schema changes are applied** and the application
-code is in the working tree, uncommitted and unpublished.
+production database directly. All of it is applied, committed (`ee46f54`) and **published**.
 
 | # | Request | Status |
 |---|---|---|
