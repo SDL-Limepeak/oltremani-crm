@@ -1,5 +1,96 @@
 # Why it is like this
 
+## 2026-09-17 — the second client round
+
+Eight points, given in chat over the course of an afternoon rather than as a written brief,
+while the client was testing the August build live. Applied to production Postgres directly
+with their go-ahead, published the same day as `ee46f54`.
+
+### The perimeter went away, and that is bigger than it sounds
+
+"Al momento, tutti gli user devono poter vedere TUTTI i contatti." Until that sentence,
+contact visibility came entirely from `res_partner_category_rel`: a coordinator saw one
+contact, a user with no group saw none, and four migrations' worth of hardening existed to
+keep it that way.
+
+It was one function. Twelve policies across six tables route through `can_see_partner`, so
+rewriting its body was the entire change — no sweep of `DROP POLICY`, no table-by-table
+edit. That is worth remembering in both directions: the same concentration that made this
+five minutes' work is what would make a careless edit to that function open everything.
+
+What deliberately did **not** move with it: deleting a contact (admin/superuser — it
+cascades to cards and proof of consent), and issuing cards (admin/superuser/coordinator).
+Those were never perimeter questions; they only looked like one because the perimeter was
+in front of them.
+
+### The rule that had to exist three times
+
+User management became hierarchical — act on profiles strictly below your own. That rule is
+now in a policy, in `protect_admin_users`, and in TypeScript in `users.functions.ts`.
+
+Not duplication for its own sake. The policy governs PostgREST, which any user reaches with
+curl. The TypeScript governs the `supabaseAdmin` writes, which bypass RLS entirely and
+never meet a policy. And the trigger governs `role`/`status` specifically — it still said
+"only admin or superuser", and had it been left alone a coordinator would have been allowed
+by the policy and refused by the trigger, for a write the product now says they may do. **A
+policy and a trigger guarding the same column have to agree, and the trigger wins.**
+
+### Two constraints, opposite answers, same afternoon
+
+The client wanted duplicate card numbers *warned about*, which meant dropping a UNIQUE: the
+cards are physical and numbered by hand, so the register records what happened rather than
+deciding what may happen.
+
+They also wanted a warning when a contact has two active cards for the same year — where a
+partial unique index already makes that impossible. That one was **kept**, and the warning
+built anyway as a net (KI-16). The difference: in the first case they were describing
+reality and asking the database to stop arguing with it; in the second they were stating a
+rule they believe in. Enforced beats flagged when the rule is real.
+
+### What the tests could not see
+
+The review before committing found a real defect the suite was green on: the "sto per
+rendere inattivo questo contatto" warning lived in `ContactForm`, which is only ever used
+to *create* a contact — and a contact that does not exist has no cards to close. The
+server-side cascade worked and was tested; the human never saw the warning.
+
+The lesson is narrow and worth keeping: a test that asserts *the rule* (cards get
+deactivated) says nothing about whether *the person* was told. Those are two features and
+the second one had no test and no user.
+
+### A gap that had been open since the start
+
+Several rules live only in `src/lib/*.functions.ts` and RLS has no opinion about them — the
+database would happily delete a group full of contacts. `tests/helpers/serverfn.ts` now
+drives server functions over real HTTP, which is how the export gate, group reassignment,
+contact deletion and the inactive cascade are covered. 91 tests → 119.
+
+Three wire-format traps are documented in that helper, all found the hard way: the endpoint
+id has to be read out of the module Vite serves, the dev server only registers it once that
+module has been requested, and the body is seroval's cross-JSON with an `x-tsr-serverFn`
+header — without it the router hands the request to the app and answers with the HTML error
+page.
+
+### Deleting a group moves its members first
+
+Obvious once stated, easy to get backwards: `res_partner_category_rel` cascades, so
+deleting the group erases the record of who was in it. Reassign, then delete. Contacts
+already in the destination are filtered out by hand, because PostgREST has no `ON CONFLICT`
+and one duplicate would fail the whole batch on the composite primary key — taking the
+other members with it.
+
+### Consents: what was not deleted
+
+"Togliamo le due finalità aggiuntive" is a statement about what the form collects. The 22
+marketing and newsletter consents already recorded were kept: they are evidence that a
+consent was given, on a date, by a person, from an IP — the record that the processing was
+lawful. Deleting that to tidy a picklist is the wrong trade, and is not undoable.
+
+For the same reason the `consent_type` CHECK was not narrowed: it would need `NOT VALID` to
+get past those rows, and a constraint that does not hold for its own table is worse than no
+constraint. The narrowing lives in `submit_public_contact`.
+
+
 ## 2026-08-06, closing — handed to the client
 
 Label direction confirmed by the client (activist gives, citizen receives) and pinned in

@@ -71,6 +71,29 @@ which is also what is published.
 - Row counts: partner 8 · category 10 · city 107 · role 5 · users 2 (+5 test) · sub 8 ·
   consent 35 · audit ~200 (the suite appends `inbound_form` rows it cannot delete).
 - All eleven migrations applied. See [db/migrations.md](db/migrations.md).
+## Picking this up again — as of 2026-09-17, end of day
+
+Everything asked for in the 2026-09-17 round is built, tested, committed and live. Nothing
+is half-finished and there is no work in progress to resume.
+
+Four things are open. Only two of them are work, and neither is work in this repo:
+
+| | What | Who |
+|---|---|---|
+| [KI-17](knowissues.md#ki-17) | The WordPress form is very likely still posting the old role codes. Those answers are dropped silently — contact created, no roles | whoever maintains that form |
+| [KI-18](knowissues.md#ki-18) | "King Pin" is inactive and still holds active card 2600004 | one click on Revoca |
+| [KI-16](knowissues.md#ki-16) | The "two active cards" warning cannot fire: a unique index already prevents the state. Kept that way on purpose | client decision if they disagree |
+| [KI-14](knowissues.md#ki-14) | The public endpoint is open by design while in demo | client decision |
+
+Two judgement calls made on the client's behalf that they can reverse cheaply, both
+recorded in [client-feedback.md](client-feedback.md): the role labels are sentence case
+rather than the capitals they wrote, and `res_partner.partner_type` was kept in the
+database after "Tipo" left the product.
+
+Before touching anything, read [db/rls.md](db/rls.md). The permission model inverted on
+2026-09-17 — contacts have no perimeter, user management is a hierarchy — and anything
+written before that date, in this repo or in your memory of it, describes the opposite.
+
 - **No known authorization holes.** Twelve of fifteen findings closed on 2026-08-06; the
   three left are a maintenance note (KI-08), a hosting limitation (KI-12) and an open
   product decision (KI-14, the public endpoint). [knowissues.md](knowissues.md).

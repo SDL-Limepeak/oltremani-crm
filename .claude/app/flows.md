@@ -30,8 +30,19 @@ What the RPC does, in order — **the order matters**:
    fallback (with `%`/`_` escaped)
 6. match found → set `city_id`, link the city's category, **remove** `Validation`;
    no match → link `Validation`
-7. insert the `privacy_consent` rows with IP and user-agent
-8. return `{ok, partner_id, validation}` — `validation: true` means *needs manual triage*
+7. attach the operational roles by `code`. **Unknown codes are dropped silently** — the
+   WordPress form is maintained by somebody else and must not break when the picklist
+   moves. The cost of that choice is KI-17
+8. resolve a declared `membership_number`. The card is **never** reassigned; a mismatch
+   goes in the notes and back to `Validation`. Since the number stopped being unique
+   (2026-09-17) the lookup takes the first match — see KI-19
+9. insert the `privacy_consent` rows with IP and user-agent. **Only `privacy_policy`**
+   since 2026-09-17: anything else in the payload is ignored, not rejected, on the same
+   reasoning as the role codes. `channel` is written as `'web'` by construction — this
+   function *is* the web form, and a channel the caller could set is a channel the caller
+   could lie about
+10. return `{ok, partner_id, validation, membership_status}` — `validation: true` means
+    *needs manual triage*
 
 The route adds `unassigned` as an alias of `validation` in the JSON response.
 

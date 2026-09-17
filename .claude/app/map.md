@@ -9,17 +9,25 @@ The whole backend surface. Each export is a `createServerFn` guarded by
 
 | File | Exports | Access path |
 |---|---|---|
-| `partners.functions.ts` | `listPartners` `getPartner` `upsertPartner` `validatePartner` `deletePartner` `recordConsent` | `context.supabase` (RLS) |
-| `users.functions.ts` | `listUsers` `upsertUser` `deleteUser` `updateProfile` | **`supabaseAdmin`** for writes → hand-written checks |
+| `partners.functions.ts` | `listPartners` `getPartner` `listPartnerRoles` `upsertPartner` `validatePartner` `partnerDeletionImpact` `deletePartner` `recordConsent` | `context.supabase` (RLS). `upsertPartner` also deactivates the cards when a contact moves to `old`; `deletePartner` checks the role in TS as well as in the policy, so the user gets a sentence instead of an empty result |
+| `users.functions.ts` | `listUsers` `upsertUser` `deleteUser` `setUserStatus` `updateProfile` | **`supabaseAdmin`** for writes → hand-written checks. Holds the TypeScript copy of the profile hierarchy (`ROLE_RANK` / `canManage`), which mirrors `role_rank` / `can_manage_user` in the database |
 | `cities.functions.ts` | `searchCities` `setCityCategory` `upsertCity` `deleteCityById` | **`supabaseAdmin`** for writes → hand-written checks. **This file is the model to copy** |
-| `categories.functions.ts` | `listCategories` `upsertCategory` `deleteCategory` | `context.supabase` (RLS) |
-| `subscriptions.functions.ts` | `listSubscriptions` `upsertSubscription` `revokeSubscription` | `context.supabase` (RLS) |
+| `categories.functions.ts` | `listCategories` `upsertCategory` `categoryDeletionImpact` `deleteCategory` | `context.supabase` (RLS). `deleteCategory` refuses a group with members unless told where to move them, and moves them **before** the delete |
+| `subscriptions.functions.ts` | `listSubscriptions` `upsertSubscription` `revokeSubscription` `membershipNumberUsage` | `context.supabase` (RLS). `membershipNumberUsage` returns both the numbers in use and the duplicated ones — the dialog warns on the first, the record flags the second |
 | `exports.functions.ts` | `exportContacts` | `context.supabase`, paged, writes a `data_export` audit row |
 | `dashboard.functions.ts` | `getDashboardStats` | `context.supabase` |
 | `audit.functions.ts` | `listAudit` | `context.supabase` (admin-only by policy) |
 
 Non-function libs: `utils.ts` (cn), `error-capture.ts`, `error-page.ts`,
-`lovable-error-reporting.ts`.
+`lovable-error-reporting.ts`, `partner-filters.ts` (pure filters + `hasActiveCard`, shared
+by the list, the export and the table's Tesserato column so they cannot disagree).
+
+**A warning about `contact-form.tsx`:** it is used by exactly one route,
+`contacts/new.tsx`. An existing contact is edited by the inline form in
+`contacts/$id.tsx`, which is a separate implementation. Anything that only makes sense for
+a contact that already exists — its cards, its consents, its history — belongs in `$id`,
+and putting it in `ContactForm` produces code that compiles, tests green and never runs.
+That happened on 2026-09-17 with the "sto per disattivare le tessere" warning.
 
 ## Supabase integration — `src/integrations/supabase/`
 
@@ -54,9 +62,11 @@ generated.
 
 | Change | Files |
 |---|---|
-| a contact field | `contact-form.tsx` + `partners.functions.ts` + schema |
+| a contact field | `contact-form.tsx` (new) **and** `contacts/$id.tsx` (existing — it has its own form) + `partners.functions.ts` + schema |
 | who can do what | policies first ([../db/rls.md](../db/rls.md)), then the server function |
 | the public form contract | `api/public/contact.tsx` + `submit_public_contact` + `public/test-form.html` |
-| roles / user management | `users.functions.ts` + `user-dialog.tsx` + `_authenticated/users.tsx` |
+| profiles / user management | `users.functions.ts` + `user-dialog.tsx` + `_authenticated/users.tsx`. The hierarchy also lives in a policy and in `protect_admin_users` — change all three |
+| the operational roles of a contact | `res_partner_role` (a table, not code) + `public/test-form.html` for the public form's copy of the codes |
+| contact statuses or their order | `selections.ts` only. `STATUS_ORDER` in the contacts list derives from it |
 | CSV export columns | `exports.functions.ts` (`COLUMNS` + the row mapper, keep them aligned) |
 | branding, colours, fonts | `src/styles.css` + [../ui/branding.md](../ui/branding.md) |

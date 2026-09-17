@@ -1,8 +1,13 @@
 # Known issues
 
-Updated 2026-08-06 (second pass — the fixes). Everything reproduced against production,
-fixed, and re-checked against production. `tests/regressions.test.ts` now asserts the
-**fixed** behaviour, so a regression turns the suite red.
+Updated 2026-09-17. Everything reproduced against production, fixed, and re-checked against
+production. `tests/regressions.test.ts` asserts the **fixed** behaviour, so a regression
+turns the suite red.
+
+KI-16 to KI-19 came out of the 2026-09-17 round and are a different kind of entry: none of
+them is a defect. They are places where the product does something a reader would plausibly
+report as a bug, written down so the answer is "known, and here is why" instead of a
+half-hour of digging.
 
 Closed entries move to [history.md](history.md) once they have been through a deploy; they
 are kept here for one cycle so a reader who remembers the finding can see how it ended.
@@ -24,9 +29,14 @@ are kept here for one cycle so a reader who remembers the finding can see how it
 | [KI-13](#ki-13) | low | `getDashboardStats` | ✅ **fixed** |
 | [KI-14](#ki-14) | info | public endpoint | ⏸ **open by decision** — not mine to close |
 | [KI-15](#ki-15) | medium | validation workflow | ✅ **fixed** |
+| [KI-16](#ki-16) | info | membership cards UI | ⏸ **open by decision** — warning cannot fire |
+| [KI-17](#ki-17) | medium | WordPress form | ⏸ **open** — not in this repo |
+| [KI-18](#ki-18) | low | production data | ⏸ **open** — one manual revoke |
+| [KI-19](#ki-19) | info | `submit_public_contact` | ⏸ **accepted consequence** |
 
-**Still open: KI-08, KI-12, KI-14.** None of them is a defect I can close by writing code —
-one is a note, one is a hosting limitation, one is a product decision. Details below.
+**Still open: KI-08, KI-12, KI-14, KI-16, KI-17, KI-18, KI-19.** Only KI-17 and KI-18 are
+actionable, and neither is actionable from this repo alone: one needs whoever maintains the
+WordPress form, the other needs somebody to click Revoca. Details below.
 
 ---
 
@@ -308,3 +318,83 @@ wrong test — a parked contact *has* a group, `Validation`, so it showed a norm
 badge and no warning. `needsTriage()` now returns true when every group a contact has is a
 `system` one, covering both the parked case (*"Da validare"*) and the orphan case
 (*"Da assegnare"*). Unit-tested in `tests/partner-filters.test.ts`.
+
+
+---
+
+## KI-16
+### The "due tessere attive" warning cannot fire ⏸
+
+The client asked (2026-09-17) for a yellow triangle when a contact holds two active cards
+for the current year. It was built, in `contacts/$id.tsx`, next to the card status.
+
+It can never appear. `idx_sub_partner_year_active` is a partial UNIQUE index on
+`(partner_id, year) WHERE status='active'`, so the second active card is refused by the
+database before anyone can see a warning about it.
+
+**Not a bug, and deliberately left as it is.** The rule the client wanted is *enforced*,
+which is strictly stronger than *flagged* — and they did not ask to be able to create the
+situation, they asked to be told about it. The warning stays as a net: if the index is ever
+dropped, the UI already copes.
+
+**If the client would rather be warned than blocked**, the change is to drop that index —
+and that is a decision, not a tidy-up. It is the same trade they explicitly made for
+`membership_number` the same day, so the answer is not obvious in either direction.
+
+---
+
+## KI-17
+### The WordPress form is probably still posting the old role codes ⏸
+
+The five operational roles were redefined on 2026-09-17. `submit_public_contact` ignores
+role codes it does not recognise, silently and on purpose — the form is maintained by
+somebody else and must not start failing when this list moves.
+
+The flip side is that a form still sending `bussola`, `membro_semplice`,
+`specialista_abitare` or `specialista_migrazione` **loses those answers with no error
+anywhere**: not in the response, not in the audit log's `role_codes`, which records what
+was sent rather than what was stored. The contact is created correctly and simply arrives
+with no roles.
+
+`public/test-form.html` in this repo is updated. The real form on the WordPress site is
+not this file. Pinned by the "known codes are attached, unknown ones are ignored" test in
+`roles-and-membership.test.ts`, which deliberately sends a retired code.
+
+**To close:** whoever maintains the WordPress form updates the five values. The current
+codes are in `res_partner_role.code`.
+
+---
+
+## KI-18
+### King Pin is inactive and still holds an active card ⏸
+
+`res_partner` "King Pin" is `status='old'` with membership `2600004` still `active` for
+2026. It is the exact state the 2026-09-17 cascade exists to prevent: an inactive member
+who still counts as paid-up everywhere the card is what gets checked.
+
+**Pre-existing, not a regression.** The cascade in `upsertPartner` fires on the *transition*
+into `old`, by design — so that a card someone reactivated on purpose is not undone by the
+next unrelated edit. This contact was made inactive from the published August build, which
+did not have the cascade at all.
+
+**To close:** open the contact, Tesseramento, Revoca on 2600004. No code involved.
+
+---
+
+## KI-19
+### With duplicate card numbers, the form's mismatch message can name the wrong holder ⏸
+
+`membership_number` stopped being UNIQUE on 2026-09-17: cards are numbered by hand, so a
+duplicate is flagged rather than refused (the client's explicit choice).
+
+`submit_public_contact` identifies a declared card with `WHERE membership_number = ... LIMIT
+1`. With a number on two cards that resolves to whichever row Postgres returns first, so
+the `mismatch` note in the contact's notes can name the wrong socio.
+
+**Accepted, and the reason it is only cosmetic:** the card is never reassigned in any
+branch. Whatever the lookup finds, the outcome is the same — the contact goes to Validation
+and a human resolves it. The note is a hint for that human, not a decision.
+
+Stated because someone will eventually read that note, find it names the wrong person, and
+go looking for a bug in the matching logic. The bug is the duplicate number, and the
+contact record already flags it with a triangle.
