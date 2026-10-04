@@ -51,7 +51,7 @@ export const Route = createFileRoute("/api/public/contact")({
 
         const {
           first_name, last_name, email, phone, city, province, notes,
-          privacy_consents, role_codes, membership_number,
+          privacy_consents, role_codes, membership_number, is_member,
         } = body ?? {};
         if (!email || typeof email !== "string") return json({ error: "email required" }, 400);
         // Phone is mandatory as of the 2026-07-25 feedback. Checked here for a clean 400,
@@ -86,8 +86,12 @@ export const Route = createFileRoute("/api/public/contact")({
           p_role_codes:       Array.isArray(role_codes)
                                 ? role_codes.filter((c: unknown) => typeof c === "string" && c.trim())
                                 : null,
-          // A declared card is looked up, never reassigned — see the RPC.
-          p_membership_number: typeof membership_number === "string" && membership_number.trim()
+          // "Sei già socia/socio?" — Yes attaches the role socio_aps in the RPC. Left out
+          // (null) by a form that predates the question: that is not a "No".
+          p_is_member:        typeof is_member === "boolean" ? is_member : null,
+          // A declared card becomes an active card unless the contact already holds it;
+          // see the RPC for the reconcile / duplicate rules. A "No" drops the number.
+          p_membership_number: is_member !== false && typeof membership_number === "string" && membership_number.trim()
                                 ? membership_number.trim()
                                 : null,
         });

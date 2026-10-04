@@ -14,10 +14,10 @@ nine: `.tmp/backup/2026-08-06/01_tables.sql` — the two role tables came later,
 | `res_city` | 107 | **province capitals only** — deliberate test dataset, not the ~8000 ISTAT comuni. `category_id`→category |
 | `res_users` | 2 + 5 test | app users. `id` = `auth.users.id` **with no FK** · `role` admin\|superuser\|coordinator\|volunteer · `status` active\|inactive |
 | `res_user_category_rel` | 2 | user perimeter. Composite PK |
-| `membership_subscription` | 8 | `status` active\|inactive\|expired\|revoked · `year` · `start_date`/`end_date` · `membership_number` **no longer UNIQUE** (2026-09-17), typed by hand, generator format `YYNNNNN` |
+| `membership_subscription` | 8 | `status` active\|inactive\|expired\|revoked · `year` · `start_date`/`end_date` · `membership_number` **no longer UNIQUE** (2026-09-17), typed by hand, generator format `<card_prefix><4 digits>` per group (2026-10-04) |
 | `privacy_consent` | 35 | `consent_type` privacy_policy\|marketing\|newsletter in the CHECK, but **only `privacy_policy` is collected** since 2026-09-17 · `channel` (`web` for everything from the public form) · `operator_id`→res_users · ip/user_agent |
 | `audit_log` | 85 | single log. `log_type` inbound_form\|record_change\|subscription_change\|permission_change\|user_change\|data_export · `action` create\|update\|merge\|validate\|delete\|api_call |
-| `res_partner_role` | 5 | operational-role picklist, **redefined 2026-09-17**: attivista, socio_aps, membro_comunita, famiglia_ospitante, specialista_diritti. `code` = API name (what the public form sends), `name` = label. A table, not a CHECK, because the client adds entries from the UI |
+| `res_partner_role` | 6 | operational-role picklist, **redefined 2026-09-17 and 2026-10-04**: active ones in order cerco_supporto, attivista, famiglia_ospitante, specialista_diritti ("Supporto legale e per il diritto all'abitare"), socio_aps; `membro_comunita` is `inactive`, not deleted. `code` = API name (what the public form sends), `name` = label. A table, not a CHECK, because the client adds entries from the UI |
 | `res_partner_role_rel` | 1 | M:N partner↔role, composite PK. Multiple by design: a contact can be an activist *and* a host family. (The "abitare e/o migrazione" split it was originally built for was merged into one entry on 2026-09-17.) |
 
 `partner_type` deserves a note: **nothing reads it any more.** The client dropped "Tipo"
@@ -32,7 +32,14 @@ dashboard and from `src/lib/selections.ts`.
 
 - `res_partner.email` UNIQUE (case-sensitive) **plus** `idx_partner_email_lower` UNIQUE on
   `lower(email)`. The second is the one that actually prevents `Mario@x.it` / `mario@x.it`.
-- `membership_subscription`: partial UNIQUE `idx_sub_partner_year_active` on
+- **`idx_sub_partner_year_active` was dropped on 2026-10-04** (see the end of this entry):
+  two active cards in the same year are warned about, not refused. What follows is the
+  history of why it existed.
+- `res_partner_category.card_prefix`: three capital letters, the prefix of the card numbers
+  issued for that group. CHECK `^[A-Z]{3}$`, partial UNIQUE `uq_rpc_card_prefix`. NULL for
+  the informal-groups container and for Validation. Distinct from `province_code` (the
+  group's master province, 2 letters).
+- *(history — the index is gone)* `membership_subscription`: partial UNIQUE `idx_sub_partner_year_active` on
   `(partner_id, year) WHERE status='active'`. Not a full `UNIQUE(partner_id, year)` — and
   that is right: it keeps the history of `inactive`/`revoked` rows while allowing only one
   active card per year. The `enforce_single_active_subscription_per_year()` trigger the

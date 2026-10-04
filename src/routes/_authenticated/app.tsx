@@ -17,7 +17,7 @@ const RELEASE_NOTES = [
     date: "2026-06-28",
     notes: [
       "Partner type: Attivista, Cittadino, Non specificato con icone e filtri",
-      "Tessere con numero progressivo YYXXXXX, emissione e revoca",
+      "Tessere con numero progressivo, emissione e revoca",
       "Consensi Privacy Policy con storico completo e canale di raccolta",
       "Cronologia modifiche per admin con dettaglio campi",
       "Dashboard con statistiche e grafici a torta per tipo e gruppo",

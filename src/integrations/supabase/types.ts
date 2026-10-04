@@ -336,6 +336,7 @@ export type Database = {
           activation_date: string | null
           address: string | null
           category_type: string
+          card_prefix: string | null
           city: string | null
           created_at: string
           created_by: string | null
@@ -357,6 +358,7 @@ export type Database = {
           activation_date?: string | null
           address?: string | null
           category_type?: string
+          card_prefix?: string | null
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -378,6 +380,7 @@ export type Database = {
           activation_date?: string | null
           address?: string | null
           category_type?: string
+          card_prefix?: string | null
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -514,6 +517,7 @@ export type Database = {
       has_role: { Args: { _role: string; _uid: string }; Returns: boolean }
       is_admin_or_super: { Args: { _uid: string }; Returns: boolean }
       visible_category_ids: { Args: { _uid: string }; Returns: string[] }
+      preview_membership_number: { Args: { p_partner: string }; Returns: Json }
       submit_public_contact: {
         Args: {
           p_first_name?: string | null
@@ -528,6 +532,7 @@ export type Database = {
           p_notes?: string | null
           p_role_codes?: string[] | null
           p_membership_number?: string | null
+          p_is_member?: boolean | null
         }
         Returns: Json
       }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  activeCardNumbers,
   applyPartnerFilters,
   needsFullScan,
   needsTriage,
@@ -174,5 +175,31 @@ describe("needsTriage drives the validation entry point", () => {
         ],
       }),
     ).toBe(false);
+  });
+});
+
+describe("activeCardNumbers — the N° tessera column", () => {
+  const sub = (over: Record<string, any>) => ({ id: crypto.randomUUID(), year: 2026, status: "active", membership_number: "ALE0001", ...over });
+
+  test("only active cards of the given year, with a number", () => {
+    const r = {
+      membership_subscription: [
+        sub({ membership_number: "ALE0001" }),
+        sub({ membership_number: "ALE0002", status: "revoked" }),
+        sub({ membership_number: "ALE0003", year: 2025 }),
+        sub({ membership_number: null }),
+      ],
+    };
+    expect(activeCardNumbers(r, 2026)).toEqual(["ALE0001"]);
+  });
+
+  test("two active cards in the year are both returned — the list warns about it", () => {
+    const r = { membership_subscription: [sub({ membership_number: "ALE0001" }), sub({ membership_number: "ALE0002" })] };
+    expect(activeCardNumbers(r, 2026)).toEqual(["ALE0001", "ALE0002"]);
+  });
+
+  test("no cards at all gives an empty list", () => {
+    expect(activeCardNumbers({}, 2026)).toEqual([]);
+    expect(activeCardNumbers({ membership_subscription: null }, 2026)).toEqual([]);
   });
 });

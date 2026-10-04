@@ -69,18 +69,32 @@ describe("selection codes are frozen, labels are not", () => {
   });
 });
 
-describe("the operational roles are the five the client asked for", () => {
-  // Replaced the old set on 2026-09-17. res_partner_role_rel was empty at the time, so
-  // nothing had to be reassigned — which is the only reason renaming codes was safe here.
-  test("codes and order", async () => {
-    const res = await select(admin, "res_partner_role", "select=code,name&order=sort_order");
+describe("the operational roles are the ones the client asked for", () => {
+  // Replaced on 2026-09-17 and again on 2026-10-04. Codes are API names and stay put when a
+  // label moves; "Membro della comunità" is deactivated rather than deleted because a
+  // contact still carries it.
+  test("active codes and order", async () => {
+    const res = await select(
+      admin,
+      "res_partner_role",
+      "select=code,name&status=eq.active&order=sort_order",
+    );
     expect(res.rows.map((r: any) => r.code)).toEqual([
+      "cerco_supporto",
       "attivista",
-      "socio_aps",
-      "membro_comunita",
       "famiglia_ospitante",
       "specialista_diritti",
+      "socio_aps",
     ]);
+    expect(res.rows.find((r: any) => r.code === "specialista_diritti").name).toBe(
+      "Supporto legale e per il diritto all'abitare",
+    );
+  });
+
+  test("membro_comunita is inactive, not deleted", async () => {
+    const res = await select(admin, "res_partner_role", "select=status&code=eq.membro_comunita");
+    expect(res.rows).toHaveLength(1);
+    expect(res.rows[0].status).toBe("inactive");
   });
 
   test("the two that were merged and the one that was dropped are gone", async () => {
@@ -124,8 +138,10 @@ describe("the selections match the database CHECK constraints", () => {
     for (const o of SUBSCRIPTION_STATUS) {
       const res = await insert(admin, "membership_subscription", {
         partner_id: partnerId,
-        year: year++,
+        year: year,
         status: o.value,
+        // A number is given because this contact has no group, and the generator needs one.
+        membership_number: `SEL-${Date.now()}-${year++}`,
         notes: "SEL-PROBE",
       });
       expect(didAffectRows(res)).toBe(true);

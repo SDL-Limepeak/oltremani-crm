@@ -22,6 +22,7 @@ export type CategoryFormValues = {
   address?: string | null;
   city?: string | null;
   province_code?: string | null;
+  card_prefix?: string | null;
   iban?: string | null;
 };
 
@@ -165,6 +166,19 @@ export function CategoryDialog({ open, onOpenChange, initial, categories = [], o
           <div className="space-y-2 md:col-span-2"><Label>Indirizzo</Label><Input value={f.address ?? ""} onChange={e => set("address", e.target.value)} /></div>
           <div className="space-y-2"><Label>Città</Label><Input value={f.city ?? ""} onChange={e => set("city", e.target.value)} /></div>
           <div className="space-y-2"><Label>Provincia</Label><Input value={f.province_code ?? ""} onChange={e => set("province_code", e.target.value)} maxLength={2} /></div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Sigla tessere (3 lettere)</Label>
+            <Input
+              value={f.card_prefix ?? ""}
+              onChange={e => set("card_prefix", e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))}
+              maxLength={3}
+              placeholder="Es. ALE"
+              className="font-mono uppercase w-32"
+            />
+            <p className="text-xs text-muted-foreground">
+              Le tessere di questo gruppo si numerano {(f.card_prefix || "XXX")}0001, {(f.card_prefix || "XXX")}0002… Ogni gruppo ha la sua sigla, diversa dalle altre. Lasciala vuota se il gruppo non emette tessere dal gestionale.
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>

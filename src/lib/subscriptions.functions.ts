@@ -135,6 +135,25 @@ export const revokeSubscription = createServerFn({ method: "POST" })
   });
 
 /**
+ * What the issue dialog shows before saving: the number the next card of this contact
+ * would get (<group prefix> + progressive), or the reason none can be assigned, and how
+ * many active cards the contact already holds for the current year.
+ *
+ * Read-only and advisory. The number is assigned by the INSERT trigger under a lock, so a
+ * preview can go stale by the time somebody clicks Save; it is a hint, not a reservation.
+ */
+export const previewMembershipNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ partner_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: res, error } = await (context.supabase as any).rpc("preview_membership_number", {
+      p_partner: data.partner_id,
+    });
+    if (error) throw error;
+    return res as { number: string | null; error: string | null; active_this_year: number };
+  });
+
+/**
  * The state of the number space: every number in use, and the ones sitting on more than
  * one card.
  *

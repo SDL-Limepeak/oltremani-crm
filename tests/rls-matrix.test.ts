@@ -212,12 +212,40 @@ describe("groups (res_partner_category)", () => {
     expect(didAffectRows(res)).toBe(false);
   });
 
-  test("a coordinator cannot reach a group outside its perimeter", async () => {
-    // Denial arrives through rpc_select, not rpc_update: PostgREST has to find the row
-    // before patching it. This is exactly the case that produced the KI-04 false positive.
-    expect((await select(coordinator, "res_partner_category", `select=id&id=eq.${FIXTURES.categoryNapoli}`)).rows).toHaveLength(0);
+  test("every role reads every group — only writing stays inside the perimeter", async () => {
+    // Opened on 2026-10-04 ("per ora tutti vedono tutto"). Before, a Varese coordinator saw
+    // every contact but only the name of one group, so the badge of a Napoli contact was
+    // blank. rpc_select no longer has a perimeter; rpc_update does, in its own body.
+    const all = await count(admin, "res_partner_category");
+    expect(all).toBeGreaterThanOrEqual(13);
+    for (const s of [superuser, coordinator, volunteer, noscope]) {
+      expect(await count(s, "res_partner_category")).toBe(all);
+    }
+    expect((await select(noscope, "res_partner_category", `select=name&id=eq.${FIXTURES.categoryNapoli}`)).rows[0].name).toBe("Napoli");
+  });
+
+  test("a coordinator can read a group outside its perimeter but not change it", async () => {
+    // This used to be refused by rpc_select hiding the row (the KI-04 false positive).
+    // It is now refused by rpc_update, which is the rule that has to hold.
+    expect((await select(coordinator, "res_partner_category", `select=id&id=eq.${FIXTURES.categoryNapoli}`)).rows).toHaveLength(1);
     const res = await update(coordinator, "res_partner_category", `id=eq.${FIXTURES.categoryNapoli}`, { phone: "probe" });
     expect(didAffectRows(res)).toBe(false);
+    expect((await select(admin, "res_partner_category", `select=phone&id=eq.${FIXTURES.categoryNapoli}`)).rows[0].phone).not.toBe("probe");
+  });
+
+  test("a coordinator can change a group it created, and a volunteer cannot change any", async () => {
+    const made = await insert(coordinator, "res_partner_category", { name: `${TEST_TAG}-coord-own-${Date.now()}` });
+    expect(didAffectRows(made)).toBe(true);
+    created.categories.push(made.rows[0].id);
+    expect(didAffectRows(await update(coordinator, "res_partner_category", `id=eq.${made.rows[0].id}`, { phone: "own" }))).toBe(true);
+    expect(didAffectRows(await update(volunteer, "res_partner_category", `id=eq.${made.rows[0].id}`, { phone: "nope" }))).toBe(false);
+    expect(didAffectRows(await update(volunteer, "res_partner_category", `id=eq.${FIXTURES.categoryVarese}`, { phone: "nope" }))).toBe(false);
+  });
+
+  test("nobody can delete the system group, and only admin or superuser can delete a group", async () => {
+    for (const s of [coordinator, volunteer, noscope]) {
+      expect(didAffectRows(await remove(s, "res_partner_category", `id=eq.${FIXTURES.categoryNapoli}`))).toBe(false);
+    }
   });
 });
 

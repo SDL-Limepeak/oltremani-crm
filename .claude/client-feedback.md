@@ -1,7 +1,8 @@
 # Client feedback
 
-Two rounds: 2026-07-25 (12 points, closed) and **2026-09-17** (8 points, built but not
-published — jump to the second half).
+Three rounds: 2026-07-25 (12 points, closed), 2026-09-17 (8 points, published) and
+**2026-09-27** (two voice notes, built and applied to the database on 2026-10-04 — the last
+section).
 
 Source: client email after the 2026-07-25 demo. The client asked explicitly **not to
 change anything yet** and to review the schema together on a call with screen sharing.
@@ -244,3 +245,99 @@ on the composite primary key, taking the other members with it.
 - **King Pin** is `status='old'` and holds an active 2026 card (2600004). Pre-existing: the
   cascade built in point 4 only runs on the transition, and this contact was made inactive
   from the published build, which does not have it. One manual revoke fixes it.
+
+---
+
+# Round 3 — the voice notes of 2026-09-27 (built 2026-10-04)
+
+Two WhatsApp voice notes from Dario, plus a written list, then a handful of follow-up
+answers in chat. Transcribed locally (Whisper `small`) because the audio is the only
+source; the written list in the chat is the wording of record.
+
+| # | Request | Status |
+|---|---|---|
+| 1 | Form: "Cosa ti piacerebbe fare?" becomes four boxes — Cerco supporto e/o ospitalità · Attivista · Famiglia ospitante · Supporto legale e per il diritto all'abitare. "Membro della comunità" goes | ✅ DB + form |
+| 2 | Form: a separate, **mandatory** question "Sei già socia/socio?" Sì/No. The card number shows only on Sì; the "se non ce l'hai te la segniamo noi" text goes | ✅ form |
+| 3 | CRM picklist follows: new "Cerco supporto e/o ospitalità", "Supporto legale…" is the old `specialista_diritti` relabelled | ✅ DB |
+| 4 | Sì ⇒ the contact becomes a member (`socio_aps`), **in addition to** whatever else they ticked | ✅ RPC |
+| 5 | Card numbers: `<3 letters of the group><4 digits>`, per group, highest + 1. Typed by hand still wins. A duplicate is warned about, never refused | ✅ DB + UI |
+| 6 | Card number in the contacts list, with the warning next to it | ✅ UI |
+| 7 | A number arriving from the form becomes an **active** card (today → 31 December). A namesake or same email is reconciled; otherwise created, and the warning does the rest | ✅ RPC |
+| 8 | Two active cards in the same calendar year: warn, don't block | ✅ DB + UI |
+| 9 | Siena is managed by Siena, Venezia by Venezia; test contacts re-aligned to their province's group | ✅ DB |
+
+## Decisions taken inside these points
+
+**Prefix per group, three letters, arbitrary and editable.** Not the province code: the
+example "CN0001" belongs to a province (Cuneo) managed by the Alessandria group, so a
+province prefix would have split one group's numbering across several. The prefix lives in
+`res_partner_category.card_prefix` (CHECK `^[A-Z]{3}$`, unique where not null) and is edited
+in the group dialog. Proposed as the province code plus one letter of the name, except
+"APS" for Ascoli Piceno (reads as the legal form): ALE · APC · CTA · GEN · NAP · PUR · RGS ·
+VAR · SIE · VEN · CUS (Chiusi). The "provincia master" the client described was already in
+the schema as `res_partner_category.province_code`; it is untouched apart from Siena (SI)
+and Venezia (VE), which were empty.
+
+**Chiusi has no real province of its own** — the comune is in Siena's. Hence an arbitrary
+prefix (`CUS`) rather than one derived from a province.
+
+**Warn-only, again, and wider.** The 2026-09-17 decision (duplicate number: warn) was
+reconsidered during this round — for a moment the client asked for an error on save — and
+confirmed. `idx_sub_partner_year_active` is dropped too: the form can legitimately hand a
+second active card to a contact who already has one, and refusing it would lose the signup.
+Two things now carry the warning: a number on more than one card, and more than one active
+card in the same year. Revoked cards count towards "number used".
+
+**A number from the form always becomes an active card.** From today to 31 December of the
+current year (Italian date), editable afterwards in the CRM. Outcomes returned in
+`membership_status`: `confirmed` (the contact already holds it) · `reconciled` (held by a
+namesake, merged into them — only when nobody has that email) · `created` (unknown number) ·
+`duplicate` (held by somebody else, created anyway) · `declared` (Sì without a number) ·
+`not_provided`. Everything except `confirmed`/`reconciled` puts the contact back in
+Validation with a note. This **reverses** the August rule "the card is never reassigned /
+never created from the form"; the card still never *moves* between contacts, it is added.
+The risk the August rule guarded against — typing someone else's number — now produces a
+visible duplicate instead of a takeover, and the client chose that explicitly.
+
+**The generator needs a group.** `generate_membership_number(partner)` raises a readable
+message when the contact has no group with a prefix, or more than one; the issue dialog
+shows the next number (or the message) before saving through `preview_membership_number`.
+The old `YYXXXXX` numbers (2600001–2600007) are untouched and do not count towards any group.
+
+**"Membro della comunità" is deactivated, not deleted.** One contact still carries it. The
+form's old code is ignored by the RPC from now on (it only attaches active roles).
+
+**Dario Carpini was not moved to Siena** although his province is SI: he is in Chiusi, a
+sub-group a province cannot express.
+
+**Found on the way:** `can_manage_user` and `role_rank` were executable by `anon` (KI-01's
+root cause again). Closed in the same migration.
+
+**Found by the per-profile tests, and fixed — groups are now readable by everybody.**
+Two symptoms of the same gap. (1) Only admin and superuser could clear the Validation
+queue: `validatePartner` looks the Validation group up with the caller's client, and
+`rpc_select` hid that group from coordinators, volunteers and the account with no groups, so
+for them triage assigned the right group but left the contact tagged "Da validare" — and
+every Sì without a clean number now goes through Validation. (2) Contacts have been visible
+to everybody since 2026-09-17 but the groups table was still scoped by perimeter, so a
+Varese coordinator saw every contact and the *name* of one group: the badge of a Siena
+contact came back blank.
+
+Decision, 2026-10-04: **"per ora tutti vedono tutto"** — `rpc_select` on
+`res_partner_category` is now "any active user". **Writing is not opened.** Until now the
+perimeter on UPDATE came for free from the SELECT filter (a row you cannot see you cannot
+patch — the KI-04 finding). With SELECT open that would have let any coordinator edit any
+group, president and card prefix included, so the rule moved into `rpc_update` itself:
+admin/superuser anywhere, a coordinator only inside their perimeter or on a group they
+created, nobody else. Insert and delete are untouched. The perimeter is now a *write* rule
+only, and "for now": when the client wants visibility back, the place is `rpc_select`.
+
+## Still open
+
+- **WordPress form (KI-17).** Whoever maintains it must send the new codes (`cerco_supporto`,
+  `attivista`, `famiglia_ospitante`, `specialista_diritti`), the new `is_member` boolean and
+  `membership_number` only with a Sì. Until then an old form loses `cerco_supporto` silently
+  and never makes anybody a member. The client may serve our form page instead — undecided.
+- **Visibility is open "for now".** Contacts since 2026-09-17, groups since 2026-10-04. If it
+  is narrowed again, narrow both together: a perimeter on groups alone is what made group
+  badges blank and broke triage.

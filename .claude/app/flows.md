@@ -30,12 +30,18 @@ What the RPC does, in order — **the order matters**:
    fallback (with `%`/`_` escaped)
 6. match found → set `city_id`, link the city's category, **remove** `Validation`;
    no match → link `Validation`
-7. attach the operational roles by `code`. **Unknown codes are dropped silently** — the
+7. attach the operational roles by `code` (active ones only; `membro_comunita` is inactive
+   since 2026-10-04 and ignored like any unknown code). **Unknown codes are dropped silently** — the
    WordPress form is maintained by somebody else and must not break when the picklist
    moves. The cost of that choice is KI-17
-8. resolve a declared `membership_number`. The card is **never** reassigned; a mismatch
-   goes in the notes and back to `Validation`. Since the number stopped being unique
-   (2026-09-17) the lookup takes the first match — see KI-19
+7b. `is_member = true` (the mandatory "Sei già socia/socio?") **or** a declared number adds
+   `socio_aps` next to the roles above. `is_member = false` drops the number
+8. a declared `membership_number` (since 2026-10-04) **becomes an active card**, today →
+   31 December. Held by this contact: `confirmed`. Held by a namesake while nobody has the
+   submitted email: the submission is merged into them (`reconciled`, decided *before* step 4
+   creates anybody). Held by somebody else: created anyway (`duplicate`). Unknown: `created`.
+   Both go back to `Validation` with a note. A Sì without a number is `declared`, also in
+   Validation. A card is never *moved* between contacts — see KI-19
 9. insert the `privacy_consent` rows with IP and user-agent. **Only `privacy_policy`**
    since 2026-09-17: anything else in the payload is ignored, not rejected, on the same
    reasoning as the role codes. `channel` is written as `'web'` by construction — this

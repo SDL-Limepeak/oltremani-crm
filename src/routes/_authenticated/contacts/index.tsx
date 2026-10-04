@@ -15,10 +15,11 @@ import { listPartners, listPartnerRoles } from "@/lib/partners.functions";
 import { listCategories } from "@/lib/categories.functions";
 import { exportContacts } from "@/lib/exports.functions";
 import { ValidationDialog } from "@/components/validation-dialog";
-import { hasActiveCard, needsTriage } from "@/lib/partner-filters";
+import { activeCardNumbers, hasActiveCard, needsTriage } from "@/lib/partner-filters";
+import { membershipNumberUsage } from "@/lib/subscriptions.functions";
 import { PARTNER_STATUS, PARTNER_STATUS_LABEL } from "@/lib/selections";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { Plus, Download, AlertCircle, Check, X, ChevronDown } from "lucide-react";
+import { Plus, Download, AlertCircle, AlertTriangle, Check, X, ChevronDown } from "lucide-react";
 
 // Mirrors the order of PARTNER_STATUS in selections.ts — derived from it rather than
 // repeated, so the dropdown and the list sort cannot drift apart.
@@ -53,6 +54,14 @@ function ContactsPage() {
   const { data: roles } = useQuery({ queryKey: ["partner-roles"], queryFn: () => listPartnerRoles() });
 
   const currentYear = new Date().getFullYear();
+
+  // Numbers are written by hand and the register only warns, so the list has to say when
+  // a number sits on more than one card. Same query the contact record uses.
+  const { data: numberUsage } = useQuery({
+    queryKey: ["membership-number-usage"],
+    queryFn: () => membershipNumberUsage(),
+  });
+  const duplicatedNumbers = new Set(numberUsage?.duplicated ?? []);
 
   const selectedRoles = filters.role_ids ?? [];
   function toggleRole(id: string) {
@@ -183,12 +192,13 @@ function ContactsPage() {
                 <th className="p-4 hidden md:table-cell">Città</th>
                 <th className="p-4 hidden md:table-cell">Gruppi</th>
                 <th className="p-4">Stato</th>
+                <th className="p-4 hidden md:table-cell">N° tessera</th>
                 <th className="p-4 text-center">Tesserato</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <tr><td className="p-6 text-muted-foreground" colSpan={6}>Caricamento…</td></tr>}
-              {!isLoading && rows.length === 0 && <tr><td className="p-6 text-muted-foreground" colSpan={6}>Nessun contatto trovato.</td></tr>}
+              {isLoading && <tr><td className="p-6 text-muted-foreground" colSpan={7}>Caricamento…</td></tr>}
+              {!isLoading && rows.length === 0 && <tr><td className="p-6 text-muted-foreground" colSpan={7}>Nessun contatto trovato.</td></tr>}
               {rows.map((r: any) => {
                 const noGroup = !r.res_partner_category_rel || r.res_partner_category_rel.length === 0;
                 return (
@@ -235,6 +245,30 @@ function ContactsPage() {
                     </td>
                     <td className="p-4">
                       <Badge className={`rounded-full ${STATUS_TONE[r.status] ?? ""}`}>{PARTNER_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      {(() => {
+                        const numbers = activeCardNumbers(r, currentYear);
+                        if (numbers.length === 0) return <span className="text-muted-foreground">—</span>;
+                        const dupes = numbers.filter((n) => duplicatedNumbers.has(n));
+                        return (
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {numbers.map((n) => (
+                              <span key={n} className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{n}</span>
+                            ))}
+                            {dupes.length > 0 && (
+                              <span title={`Il numero ${dupes.join(", ")} è usato da più di una tessera: da correggere a mano.`}>
+                                <AlertTriangle className="h-4 w-4 text-[#E8921E]" />
+                              </span>
+                            )}
+                            {numbers.length > 1 && (
+                              <span title={`Questo contatto ha ${numbers.length} tessere attive per il ${currentYear}: ne può avere una sola, revoca quelle che non valgono più.`}>
+                                <AlertTriangle className="h-4 w-4 text-[#E8921E]" />
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="p-4">
                       {/* Answered by the same helper the CSV uses, so the tick and the

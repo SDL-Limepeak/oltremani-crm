@@ -48,7 +48,7 @@ describe("KI-01 — SECURITY DEFINER functions are closed to anon (FIXED)", () =
   // Postgres grants EXECUTE on every new function to PUBLIC and anon inherits from it.
   // The fix names PUBLIC in the REVOKE.
   test("generate_membership_number refuses an unauthenticated caller", async () => {
-    const res = await rpc(null, "generate_membership_number", { p_year: 2026 });
+    const res = await rpc(null, "generate_membership_number", { p_partner: FIXTURES.partnerInScope });
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.body?.message ?? "").toContain("permission denied");
   });
@@ -64,6 +64,17 @@ describe("KI-01 — SECURITY DEFINER functions are closed to anon (FIXED)", () =
   test("the authorization helpers refuse an unauthenticated caller", async () => {
     for (const fn of ["current_role_name", "is_admin_or_super", "visible_category_ids", "can_see_partner"]) {
       const res = await rpc(null, fn, { _uid: admin.userId, _partner_id: FIXTURES.partnerInScope });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    }
+  });
+
+  test("can_manage_user and role_rank are not executable by anon (found 2026-10-04)", async () => {
+    // Same root cause as the rest of this block: born with EXECUTE to PUBLIC.
+    for (const [fn, args] of [
+      ["can_manage_user", { _uid: admin.userId, _target_role: "volunteer" }],
+      ["role_rank", { _role: "admin" }],
+    ] as const) {
+      const res = await rpc(null, fn, args);
       expect(res.status).toBeGreaterThanOrEqual(400);
     }
   });
@@ -205,6 +216,8 @@ describe("KI-04 — the 204 trap (withdrawn finding, kept as a guard)", () => {
   // assertion in this suite goes through didAffectRows: PostgREST cannot distinguish a
   // denial from a success by status code alone.
   test("a PATCH that RLS filtered away still answers 2xx", async () => {
+    // Since 2026-10-04 the group is readable to the coordinator and rpc_update is what
+    // filters the row away; the trap is the same: 2xx, zero rows.
     const res = await update(
       coordinator,
       "res_partner_category",
@@ -233,8 +246,9 @@ describe("KI-10 — membership numbers are generated inside the INSERT (FIXED)",
       notes: "KI10-PROBE",
     });
     expect(didAffectRows(res)).toBe(true);
-    // Format is YYNNNNN — two-digit year plus a five-digit counter.
-    expect(res.rows[0].membership_number).toMatch(/^39\d{5}$/);
+    // Format since 2026-10-04: the group's three-letter prefix plus a four-digit counter.
+    // partnerInScope is in the Varese group, whose prefix is VAR.
+    expect(res.rows[0].membership_number).toMatch(/^VAR\d{4,}$/);
     await remove(admin, "membership_subscription", `id=eq.${res.rows[0].id}`);
   });
 
@@ -252,6 +266,12 @@ describe("KI-10 — membership numbers are generated inside the INSERT (FIXED)",
       ),
     );
     const ids = partners.map((p) => p.rows[0].id);
+    // A number is drawn from the contact's group, so each racer joins Varese first.
+    await insert(
+      admin,
+      "res_partner_category_rel",
+      ids.map((partner_id) => ({ partner_id, category_id: FIXTURES.categoryVarese })),
+    );
 
     const results = await Promise.all(
       ids.map((pid) =>
@@ -274,7 +294,7 @@ describe("KI-10 — membership numbers are generated inside the INSERT (FIXED)",
 
   test("generate_membership_number is no longer callable by the client at all", async () => {
     // The trigger is SECURITY DEFINER and calls it as the owner, so no API role needs it.
-    expect((await rpc(admin, "generate_membership_number", { p_year: 2026 })).status)
+    expect((await rpc(admin, "generate_membership_number", { p_partner: FIXTURES.partnerInScope })).status)
       .toBeGreaterThanOrEqual(400);
   });
 });
@@ -304,7 +324,10 @@ describe("2026-07-25 hardening — must not regress", () => {
     await remove(admin, "res_partner", `id=eq.${first.rows[0].id}`);
   });
 
-  test("only one active card per partner per year", async () => {
+  test("two active cards in the same year are accepted — the unique index was dropped 2026-10-04", async () => {
+    // It used to answer 409. The client chose to be warned rather than blocked: the public
+    // form can hand a second active card to a contact who already has one, and refusing it
+    // would lose the signup. The warning lives in the UI (contact record and contacts list).
     const y = 2035;
     const a = await insert(admin, "membership_subscription", {
       partner_id: FIXTURES.partnerInScope,
@@ -320,9 +343,9 @@ describe("2026-07-25 hardening — must not regress", () => {
       status: "active",
       notes: "KIuniq-PROBE",
     });
-    expect(b.status).toBe(409);
+    expect(didAffectRows(b)).toBe(true);
+    expect(b.rows[0].membership_number).not.toBe(a.rows[0].membership_number); // the generator still hands out distinct numbers
 
-    // A second non-active row is allowed on purpose: the partial index keeps the history.
     const c = await insert(admin, "membership_subscription", {
       partner_id: FIXTURES.partnerInScope,
       year: y,

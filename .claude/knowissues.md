@@ -29,12 +29,12 @@ are kept here for one cycle so a reader who remembers the finding can see how it
 | [KI-13](#ki-13) | low | `getDashboardStats` | ✅ **fixed** |
 | [KI-14](#ki-14) | info | public endpoint | ⏸ **open by decision** — not mine to close |
 | [KI-15](#ki-15) | medium | validation workflow | ✅ **fixed** |
-| [KI-16](#ki-16) | info | membership cards UI | ⏸ **open by decision** — warning cannot fire |
+| [KI-16](#ki-16) | info | membership cards UI | ✅ **resolved 2026-10-04** — the index is gone, the warning fires |
 | [KI-17](#ki-17) | medium | WordPress form | ⏸ **open** — not in this repo |
 | [KI-18](#ki-18) | low | production data | ⏸ **open** — one manual revoke |
 | [KI-19](#ki-19) | info | `submit_public_contact` | ⏸ **accepted consequence** |
 
-**Still open: KI-08, KI-12, KI-14, KI-16, KI-17, KI-18, KI-19.** Only KI-17 and KI-18 are
+**Still open: KI-08, KI-12, KI-14, KI-17, KI-18, KI-19.** Only KI-17 and KI-18 are
 actionable, and neither is actionable from this repo alone: one needs whoever maintains the
 WordPress form, the other needs somebody to click Revoca. Details below.
 
@@ -118,6 +118,12 @@ that wrote it.
 
 ## KI-04
 ### ~~A coordinator can modify any group~~ — withdrawn, and the guard stays
+
+> **2026-10-04:** this protection came from `rpc_select` being perimeter-scoped. `rpc_select`
+> is now open to every active user, so the perimeter was moved into `rpc_update`'s own
+> `USING`/`WITH CHECK`. The result below still holds — only the mechanism changed. Pinned by
+> `rls-matrix.test.ts` ("a coordinator can read a group outside its perimeter but not
+> change it") and the original guard here.
 
 Reading `rpc_update` (role-only `USING`, no perimeter) suggests a coordinator can PATCH any
 category. **It cannot.** PostgREST has to locate the row before updating it, and that read
@@ -323,7 +329,14 @@ badge and no warning. `needsTriage()` now returns true when every group a contac
 ---
 
 ## KI-16
-### The "due tessere attive" warning cannot fire ⏸
+### ~~The "due tessere attive" warning cannot fire~~ — resolved 2026-10-04 ✅
+
+> **2026-10-04:** the client chose to be warned rather than blocked, so
+> `idx_sub_partner_year_active` was dropped (migration `20261004120000`). The warning now
+> fires in the contact record and, new, next to the card number in the contacts list. The
+> reason it had to go is concrete: the public form can now hand a second active card to a
+> contact who already has one, and refusing it would have lost the signup. Below, what was
+> true until then.
 
 The client asked (2026-09-17) for a yellow triangle when a contact holds two active cards
 for the current year. It was built, in `contacts/$id.tsx`, next to the card status.
@@ -360,8 +373,11 @@ with no roles.
 not this file. Pinned by the "known codes are attached, unknown ones are ignored" test in
 `roles-and-membership.test.ts`, which deliberately sends a retired code.
 
-**To close:** whoever maintains the WordPress form updates the five values. The current
-codes are in `res_partner_role.code`.
+**To close:** whoever maintains the WordPress form updates the values. The current codes
+are in `res_partner_role.code`. **Updated 2026-10-04:** the active ones are now
+`cerco_supporto`, `attivista`, `famiglia_ospitante`, `specialista_diritti`; `socio_aps` is
+no longer a checkbox but follows from the new `is_member` boolean, and `membro_comunita` is
+retired. A form that predates this never makes anybody a member.
 
 ---
 
@@ -382,7 +398,12 @@ did not have the cascade at all.
 ---
 
 ## KI-19
-### With duplicate card numbers, the form's mismatch message can name the wrong holder ⏸
+### With duplicate card numbers, the form's duplicate note can name the wrong holder ⏸
+
+> **Updated 2026-10-04.** The form no longer ends at a note: a declared number now creates
+> an active card (see client-feedback, round 3). The lookup below still takes the first
+> holder, so the `duplicate` note can still name the wrong one — but the duplicate itself
+> is now visible everywhere (list, contact record), which is the real safeguard.
 
 `membership_number` stopped being UNIQUE on 2026-09-17: cards are numbered by hand, so a
 duplicate is flagged rather than refused (the client's explicit choice).

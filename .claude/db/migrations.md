@@ -29,9 +29,11 @@ can silently undo them, and why `bun test` must be re-run afterwards.
 | `20260806140000_partner_roles_and_membership_claim` | ✅ full | `res_partner_role` (5 seeded) + `res_partner_role_rel` with perimeter-scoped RLS · `submit_public_contact` has `p_role_codes` and `p_membership_number`, exactly 1 overload · all four membership branches proved in a cancelled transaction |
 | `20260917150000_open_contacts_profile_hierarchy_cards` | ✅ full | the five new role codes read back in `sort_order` · all five test accounts count 8/8 contacts through PostgREST, `noscope` included · hierarchy probed account by account with real tokens, peer case included · `expire_memberships` proved in a cancelled transaction · `cron.job` holds `expire-memberships` at `2 0 * * *` · `membership_subscription_membership_number_key` gone, `idx_sub_membership_number` present · `bun test` 107/107 with the dev server up |
 
+| `20261004120000_form_roles_group_prefix_cards` | ✅ full | roles read back in `sort_order` (cerco_supporto first, membro_comunita inactive last) · `card_prefix` on 11 groups, unique · SI/VE cities under Siena/Venezia · generator proved in a cancelled block (`SIE0001`, hand-typed `SIE0007`/`sie0003` counted → `SIE0008`, no group → readable error) · six RPC paths proved in a cancelled block (declared / created+active card / duplicate / reconciled / confirmed / No ignores the number) · `anon` executes only `submit_public_contact`, exactly 1 overload · `idx_sub_partner_year_active` gone · route exercised once over HTTP with the dev server · `rpc_select` = any active user and `rpc_update` carries the perimeter itself (section 6; groups open to all, writes not) · `bun test` 170/170 across 10 files with the dev server up, twice |
+
 ## Can the files be deleted?
 
-**No.** All eleven are applied, but deleting them would throw away the only record that these
+**No.** All of them are applied, but deleting them would throw away the only record that these
 changes exist — Lovable's changelog does not have them, and `schema_migrations` does not
 either. They are the recovery script for the day an agent regenerates the schema.
 

@@ -60,6 +60,9 @@ function TreeNode({ node, onEdit, onAddChild, onDelete, canManage, depth = 0 }: 
 
         <span className={`flex-1 ${isRoot ? "text-sm font-semibold text-foreground" : "text-sm text-foreground/80"}`}>
           {node.name}
+          {node.card_prefix && (
+            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground" title="Sigla delle tessere di questo gruppo">{node.card_prefix}</span>
+          )}
           {(node.activist > 0 || node.citizen > 0) && (
             <span className="ml-1.5 text-xs text-muted-foreground font-normal">
               {"("}

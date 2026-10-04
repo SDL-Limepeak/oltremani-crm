@@ -1,5 +1,40 @@
 # Why it is like this
 
+## 2026-10-04 — the third client round, and the card number becomes a group number
+
+Two voice notes (the transcription is in the chat history, not in the repo) and a long
+back-and-forth the same evening. Built in one session; the database was applied directly
+through the Lovable MCP and the code is in the working tree.
+
+**What was worth the argument.** The client first asked for an error on a duplicate card
+number, then confirmed warn-only; first asked for "the province's initials", then — after
+it turned out Cuneo (CN) belongs to the Alessandria group — for an arbitrary three-letter
+prefix per group. The model that fell out of it is simpler than either: the group owns the
+prefix and the counter, the card owns nothing.
+
+**A decision that reverses an earlier one on purpose.** In August the form could never
+create a card: typing somebody else's number would have been a takeover. Now a declared
+number becomes an active card. The client accepts the exposure because the result is a
+visible duplicate, flagged in the list, instead of a silent reassignment — and because the
+alternative (a card created only by a human) lost the signups that arrive with a number.
+
+**Visibility of groups.** The per-profile tests showed that opening contacts to everybody on
+2026-09-17 had left the groups table scoped, which blanked group badges for non-admins and
+silently broke triage. Diego's call was to open it too ("per ora tutti vedono tutto"). The
+non-obvious part is that the read filter was also, accidentally, the write perimeter
+(KI-04), so opening the read policy alone would have been a privilege escalation for
+coordinators — the write rule was written down in `rpc_update` in the same change.
+
+**Verification.** The five `test-*` accounts already existed; only `tests/credentials.json`
+was missing, so their passwords were reset (those five rows only — neither Dario's nor
+Diego's real account was touched) and the file recreated. `bun test` then ran 136 tests, two
+of which failed *because the behaviour had changed on purpose* (the unique index on active
+cards; a generator that now needs a group) and were rewritten. A new file,
+`cards-by-profile.test.ts`, walks the round as admin, superuser (Dario's profile),
+coordinator, volunteer and the volunteer with no groups: 29 tests, and it found one real
+bug the existing suite had never asked about — see client-feedback, round 3.
+
+
 ## 2026-09-17 — the second client round
 
 Eight points, given in chat over the course of an afternoon rather than as a written brief,
@@ -139,6 +174,11 @@ Three live holes found, all reproduced against production, then fixed and re-che
 KI-01, KI-02, KI-03. One suspected hole withdrawn as a false positive (KI-04) — the probe
 returned HTTP 204 while changing nothing. Twelve of the fifteen findings are closed;
 the three that remain are a maintenance note, a hosting limitation and a product decision.
+
+> **Superseded in part, 2026-10-04.** `rpc_select` on `res_partner_category` no longer has a
+> perimeter ("per ora tutti vedono tutto"), so the mechanism below no longer protects
+> anything; `rpc_update` carries the perimeter itself. The guard test stays and the lesson
+> about 204 stands. See client-feedback, round 3.
 
 ### The one that nearly became a false finding
 

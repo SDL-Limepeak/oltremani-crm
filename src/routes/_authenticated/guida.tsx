@@ -79,14 +79,16 @@ function GuidaPage() {
           <Sub>Quando il consenso arriva dal form pubblico il canale è sempre <strong>Web</strong>, non è una scelta: quel form è il web.</Sub>
           <Sub><strong>Cronologia</strong>: log di ogni modifica al contatto (solo admin).</Sub>
           <Li><strong>Ruoli</strong> (sostituiscono il vecchio campo "Tipo"): se ne possono scegliere più di uno.</Li>
-          <Sub>Attivista · Socio APS · Membro della comunità · Famiglia ospitante · Specialista di diritti sulle migrazioni e/o abitare</Sub>
-          <Sub>Sono gli stessi che compaiono nel form pubblico. L'elenco si gestisce dal database, non è fisso nel codice.</Sub>
+          <Sub>Cerco supporto e/o ospitalità · Attivista · Famiglia ospitante · Supporto legale e per il diritto all'abitare · Socio APS</Sub>
+          <Sub>Nel form pubblico le prime quattro sono caselle da spuntare. <strong>Socio APS</strong> non lo è: arriva dalla domanda separata "Sei già socia/socio?" — chi risponde Sì diventa Socio APS, in più degli altri ruoli che ha scelto. L'elenco si gestisce dal database, non è fisso nel codice.</Sub>
+          <Sub>Se chi risponde Sì indica anche il numero di tessera, la tessera viene creata attiva (da oggi al 31 dicembre) e il contatto resta in Validation finché qualcuno non la verifica. Se il numero è di un omonimo con la stessa tessera, il contatto viene riconosciuto e unito a quello esistente.</Sub>
+          <Li><strong>Colonna N° tessera</strong>: il numero della tessera attiva per l'anno in corso. Il <strong className="text-[#E8921E]">triangolo giallo</strong> accanto compare se il numero è su più di una tessera o se il contatto ne ha più di una attiva.</Li>
           <Li><strong>Colonna Tesserato</strong>: ultima colonna della lista. <strong className="text-emerald-700">✓ verde</strong> se il contatto ha una tessera attiva per l'anno in corso, <strong className="text-rose-700">✗ rosso</strong> altrimenti.</Li>
           <Li><strong>Stato contatto</strong>, nell'ordine in cui compare ovunque: <strong>Nuovo</strong> (appena inserito) → <strong>Attivo</strong> (membro a tutti gli effetti) → <strong>Inattivo</strong> (uscito) → <strong>Rifiutato</strong> (ha declinato). La lista contatti è ordinata così.</Li>
           <Sub>Mettendo un contatto su <strong>Inattivo</strong>, prima di salvare l'applicazione ti avvisa e — se confermi — disattiva anche le sue tessere attive. Il numero resta assegnato a lui.</Sub>
           <Li><strong>Telefono</strong>: inserisci sempre il prefisso internazionale (es. +39 per l'Italia). Usa il campo <em>Telefono alternativo</em> per un secondo numero.</Li>
           <Li><strong>Assegnazione gruppo</strong>: nella scheda Dati, seleziona i gruppi territoriali a cui il contatto appartiene cliccando i badge. Un contatto senza gruppo è segnalato con un avviso arancione.</Li>
-          <Li><strong>Chi vede cosa</strong>: tutti gli utenti vedono e possono modificare tutti i contatti, indipendentemente dai gruppi. I gruppi restano un'informazione sul contatto, non un limite di visibilità.</Li>
+          <Li><strong>Chi vede cosa</strong>: tutti gli utenti vedono e possono modificare tutti i contatti, indipendentemente dai gruppi. I gruppi restano un'informazione sul contatto, non un limite di visibilità: anche l'elenco dei gruppi lo vedono tutti. Cambiare o creare un gruppo resta riservato ad admin, superuser e (solo nel proprio ambito) coordinatori.</Li>
           <Li><strong>Eliminare un contatto</strong>: solo admin e superuser, dal pulsante in alto nella scheda. Prima di procedere l'applicazione elenca cosa sparisce insieme a lui — tessere, consensi privacy, gruppi e ruoli. Non è annullabile.</Li>
           <Li><strong>CSV export</strong>: pulsante <strong>"Esporta CSV"</strong> disponibile ad admin, superuser e coordinatori. Esporta i contatti che stai vedendo, filtri compresi, con tutte le colonne della scheda: anagrafica, città, stato, gruppi, ruoli, tesserato sì/no per l'anno in corso, numero e anno della tessera, note e date.</Li>
         </Section>
@@ -95,10 +97,10 @@ function GuidaPage() {
         <Section icon={CreditCard} title="Tessere (Tesseramenti)">
           <Li>Dalla lista <strong>Tesseramenti</strong> puoi vedere tutte le tessere dell'anno corrente con stato e numero.</Li>
           <Li><strong>Emettere una tessera</strong>: apri la scheda del contatto → tab Tessere → "Emetti nuova tessera". Seleziona l'anno.</Li>
-          <Sub>Il <strong>numero lo scrivi tu</strong>: le tessere si compilano a mano, quindi il numero è quello stampato sulla tessera fisica. Se lasci il campo vuoto ne viene proposto uno nel formato <strong>YYXXXXX</strong> (anno + progressivo).</Sub>
+          <Sub>Il <strong>numero lo scrivi tu</strong>: le tessere si compilano a mano, quindi il numero è quello stampato sulla tessera fisica. Se lasci il campo vuoto la tessera prende la <strong>sigla del gruppo</strong> del contatto più un progressivo a quattro cifre (per esempio <strong>ALE0007</strong>: il più alto di quel gruppo più uno). Il numero che verrà assegnato è scritto sotto il campo. Se il contatto non ha un gruppo con sigla, assegna prima il gruppo oppure digita il numero a mano.</Sub>
           <Sub>Se il numero è già usato da un'altra tessera l'applicazione te lo dice, ma <strong>non ti blocca</strong>: puoi salvarlo lo stesso e resterà segnalato finché non lo correggi.</Sub>
           <Li><strong>Revocare una tessera</strong>: clicca il pulsante <strong>Revoca</strong> a sinistra del badge. L'operazione è irreversibile.</Li>
-          <Li>Un contatto può avere <strong>una sola tessera attiva per anno</strong>. Dopo la revoca è possibile emetterne una nuova.</Li>
+          <Li>Un contatto dovrebbe avere <strong>una sola tessera attiva per anno</strong>, ma non è bloccato: se ne emetti una seconda l'applicazione ti avvisa e resta il triangolo giallo finché non ne revochi una.</Li>
           <Li><strong>Triangolo giallo accanto allo stato</strong>: segnala le due situazioni da sistemare a mano — il numero è su più di una tessera, oppure lo stesso contatto ha due tessere attive per l'anno in corso. Passaci sopra il mouse per la spiegazione.</Li>
           <Li><strong>Scadenza</strong>: ogni notte le tessere attive con data di fine già passata diventano <strong>Scadute</strong> da sole. Non c'è niente da fare a mano.</Li>
           <Li>Badge colori: <strong className="text-emerald-700">TESSERATO</strong> (verde), <strong className="text-destructive">REVOCATA</strong> e <strong className="text-destructive">SCADUTA</strong> (rosso), <strong>NON ATTIVA</strong> (grigio).</Li>
@@ -110,6 +112,7 @@ function GuidaPage() {
           <Li>Accanto al nome del gruppo è indicato il numero di contatti assegnati.</Li>
           <Li><strong>Nuovo gruppo</strong>: clicca "Nuovo gruppo" in alto a destra. Puoi scegliere il gruppo padre.</Li>
           <Li><strong>Modificare un gruppo</strong>: hover sul nome → "Modifica". Puoi cambiare nome, stato, gruppo padre, presidente (cercato tra i contatti censiti), dati di contatto e IBAN.</Li>
+          <Li><strong>Sigla tessere</strong>: tre lettere (per esempio ALE) che aprono il numero delle tessere del gruppo. Ogni gruppo ha la sua, diversa dalle altre; si può cambiare quando vuoi, le tessere già emesse restano come sono.</Li>
           <Li><strong>Aggiungere un figlio</strong>: hover sul nome del gruppo padre → "+ figlio".</Li>
           <Li><strong>Eliminare un gruppo</strong>: hover → "Elimina".</Li>
           <Sub>Se il gruppo ha dei contatti, <strong>devi scegliere in quale altro gruppo spostarli</strong> prima di poterlo eliminare: non si può cancellare lasciandoli senza.</Sub>
@@ -153,7 +156,7 @@ function GuidaPage() {
 
         {/* Glossario */}
         <Section icon={FileText} title="Glossario rapido">
-          <Li><strong>Ruolo</strong>: cosa fa una persona nell'associazione (Attivista, Socio APS, Membro della comunità, Famiglia ospitante, Specialista di diritti). Un contatto può averne più di uno. Ha sostituito il vecchio campo "Tipo".</Li>
+          <Li><strong>Ruolo</strong>: cosa fa una persona nell'associazione (Cerco supporto, Attivista, Famiglia ospitante, Supporto legale, Socio APS). Un contatto può averne più di uno. Ha sostituito il vecchio campo "Tipo".</Li>
           <Li><strong>Profilo</strong>: cosa può fare un <em>utente</em> dentro l'applicazione (Admin, Superuser, Coordinatore, Volontario). Da non confondere con il ruolo, che riguarda i contatti.</Li>
           <Li><strong>Nuovo</strong>: contatto appena inserito, non ancora classificato.</Li>
           <Li><strong>Attivo</strong>: membro confermato e partecipante.</Li>

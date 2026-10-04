@@ -103,6 +103,11 @@
     .g-Catania { background: #fee2e2; color: #991b1b; }
     .g-Ragusa { background: #fdf2f8; color: #86198f; }
     .g-Genova2 { background: #ecfdf5; color: #065f46; }
+    .g-Siena { background: #e0f2fe; color: #075985; }
+    .g-Venezia { background: #ecfeff; color: #155e75; }
+    .radio-row { display: flex; gap: 22px; }
+    #card-block { display: none; margin-top: 14px; }
+    #card-block.on { display: block; }
   </style>
 </head>
 <body>
@@ -164,21 +169,17 @@
           <!-- Roles. The codes below are the API names from res_partner_role.code; the
                visible text is res_partner_role.name. This static page hardcodes them, so
                if the client adds a role in the CRM it will not appear here until someone
-               updates this list — acceptable for a demo page, but the real WordPress form
-               should read them from an endpoint. -->
+               updates this list. Order and wording are the client's (2026-09-27); "Socio
+               APS" is not a checkbox any more, it follows from the question below. -->
           <div class="privacy-group">
             <label>Cosa ti piacerebbe fare? <small>(puoi scegliere più di una voce)</small></label>
             <label class="check-row">
+              <input type="checkbox" name="role" value="cerco_supporto" />
+              <span>Cerco supporto e/o ospitalità</span>
+            </label>
+            <label class="check-row">
               <input type="checkbox" name="role" value="attivista" />
               <span>Attivista</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="role" value="socio_aps" />
-              <span>Socio APS</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="role" value="membro_comunita" />
-              <span>Membro della comunità</span>
             </label>
             <label class="check-row">
               <input type="checkbox" name="role" value="famiglia_ospitante" />
@@ -186,15 +187,30 @@
             </label>
             <label class="check-row">
               <input type="checkbox" name="role" value="specialista_diritti" />
-              <span>Specialista di diritti sulle migrazioni e/o abitare</span>
+              <span>Supporto legale e per il diritto all'abitare</span>
             </label>
           </div>
         </div>
 
         <div class="section">
-          <label>Numero tessera <small>(solo se sei già socio)</small></label>
-          <input name="membership_number" placeholder="Es. 2600001" />
-          <small>Lascia vuoto se non hai ancora una tessera: te ne verrà assegnata una.</small>
+          <!-- A separate question, mandatory. Yes makes the person a member in the CRM
+               (role Socio APS, added next to whatever they ticked above) and reveals the
+               card number; No shows nothing more. -->
+          <label>Sei già socia/socio? *</label>
+          <div class="radio-row">
+            <label class="check-row">
+              <input type="radio" name="is_member" value="yes" required />
+              <span>Sì</span>
+            </label>
+            <label class="check-row">
+              <input type="radio" name="is_member" value="no" required />
+              <span>No</span>
+            </label>
+          </div>
+          <div id="card-block">
+            <label>Numero tessera</label>
+            <input name="membership_number" placeholder="Es. ALE0001" />
+          </div>
         </div>
 
         <div class="section">
@@ -291,7 +307,7 @@ const PROVINCE = [
   ["VI","Vicenza","Veneto","Pesaro Urbino"],
   ["BL","Belluno","Veneto","Pesaro Urbino"],
   ["TV","Treviso","Veneto","Pesaro Urbino"],
-  ["VE","Venezia","Veneto","Pesaro Urbino"],
+  ["VE","Venezia","Veneto","Venezia"],
   ["PD","Padova","Veneto","Pesaro Urbino"],
   ["RO","Rovigo","Veneto","Pesaro Urbino"],
   ["UD","Udine","Friuli-Venezia Giulia","Pesaro Urbino"],
@@ -315,7 +331,7 @@ const PROVINCE = [
   ["LI","Livorno","Toscana","Genova"],
   ["PI","Pisa","Toscana","Genova"],
   ["AR","Arezzo","Toscana","Pesaro Urbino"],
-  ["SI","Siena","Toscana","Pesaro Urbino"],
+  ["SI","Siena","Toscana","Siena"],
   ["GR","Grosseto","Toscana","Pesaro Urbino"],
   ["PG","Perugia","Umbria","Pesaro Urbino"],
   ["TR","Terni","Umbria","Ascoli Piceno"],
@@ -379,6 +395,8 @@ const GRP_CLASS = {
   "Napoli": "g-Napoli",
   "Catania": "g-Catania",
   "Ragusa": "g-Ragusa",
+  "Siena": "g-Siena",
+  "Venezia": "g-Venezia",
 };
 
 // Populate province select
@@ -412,6 +430,17 @@ PROVINCE.forEach(([code, nome, regione, gruppo]) => {
   tbody.appendChild(tr);
 });
 
+// The card number only appears for "Sì". Hidden, it is also emptied, so a person who
+// answers Sì, types a number and then switches to No does not send it.
+const cardBlock = document.getElementById("card-block");
+document.querySelectorAll('input[name="is_member"]').forEach((r) => {
+  r.addEventListener("change", () => {
+    const yes = document.querySelector('input[name="is_member"]:checked')?.value === "yes";
+    cardBlock.classList.toggle("on", yes);
+    if (!yes) document.querySelector('input[name="membership_number"]').value = "";
+  });
+});
+
 // Form submit
 document.getElementById("contact-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -430,7 +459,12 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
     notes:      f.notes.value.trim()      || null,
     // API names, not labels — see res_partner_role.code.
     role_codes: [...f.querySelectorAll('input[name="role"]:checked')].map(i => i.value),
-    membership_number: f.membership_number.value.trim() || null,
+    // The answer to "Sei già socia/socio?" is mandatory (radio `required`). Yes makes the
+    // person a member in the CRM; the number is optional and only sent with a Yes.
+    is_member: f.querySelector('input[name="is_member"]:checked').value === "yes",
+    membership_number: f.querySelector('input[name="is_member"]:checked').value === "yes"
+      ? (f.membership_number.value.trim() || null)
+      : null,
     // Only the primary purpose since 2026-09-17. The two secondary ones (newsletter,
     // marketing) were dropped; submit_public_contact ignores them if anything still
     // sends them.
@@ -462,13 +496,15 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
   const provRow = PROVINCE.find(p => p[0] === body.province);
   const expectedGroup = provRow ? provRow[3] : "—";
 
-  // A declared card is never reassigned: membership_number is UNIQUE, so honouring the
-  // claim would let anyone take over another member's card by typing their number.
+  // What happened to the declared card. A number is always recorded as an active card
+  // (nobody is refused); when it is not the contact's own, a person checks it afterwards.
   const MEMBERSHIP_MSG = {
-    confirmed:    '<span class="ok-badge">✅ Tessera confermata</span>',
-    not_found:    '<span class="val-badge">⚠️ Numero non trovato — ti registriamo comunque, la tessera verrà corretta o riassegnata</span>',
-    mismatch:     '<span class="val-badge">⚠️ Il numero risulta intestato a un altro socio — non riassegnato, verrà verificato</span>',
-    not_provided: '<span style="color:var(--muted)">— non fornito</span>',
+    confirmed:    '<span class="ok-badge">✅ Tessera già a nome di questo contatto</span>',
+    reconciled:   '<span class="ok-badge">✅ Riconosciuto: stesso nome del titolare della tessera, unito al contatto esistente</span>',
+    created:      '<span class="val-badge">⚠️ Numero non presente a sistema — tessera creata, verrà verificata</span>',
+    duplicate:    '<span class="val-badge">⚠️ Numero già assegnato a un altro contatto — tessera creata, comparirà l'avviso di doppione</span>',
+    declared:     '<span class="val-badge">⚠️ Dichiara di essere socio senza numero — contatto in Validation</span>',
+    not_provided: '<span style="color:var(--muted)">— non è socio / non fornito</span>',
   };
 
   if (ok) {
@@ -478,7 +514,8 @@ document.getElementById("contact-form").addEventListener("submit", async (e) => 
         <div class="kv"><strong>partner_id</strong><span style="font-family:monospace;font-size:12px">${data.partner_id}</span></div>
         <div class="kv"><strong>Validazione manuale</strong><span>${data.validation ? '<span class="val-badge">⚠️ Sì — serve intervento manuale</span>' : '<span class="ok-badge">✅ No — città abbinata</span>'}</span></div>
         <div class="kv"><strong>Tessera dichiarata</strong><span>${MEMBERSHIP_MSG[data.membership_status] || data.membership_status || '—'}</span></div>
-        <div class="kv"><strong>Ruoli inviati</strong><span>${body.role_codes.length ? body.role_codes.join(", ") : "—"}</span></div>
+        <div class="kv"><strong>Già socio</strong><span>${body.is_member ? "Sì" : "No"}</span></div>
+        <div class="kv"><strong>Ruoli scelti</strong><span>${body.role_codes.length ? body.role_codes.join(", ") : "—"}${body.is_member ? ", socio_aps (dal Sì)" : ""}</span></div>
         <div class="kv"><strong>Gruppo atteso</strong><span><span class="grp-tag ${GRP_CLASS[expectedGroup] || ''}">${expectedGroup}</span></span></div>
       </div>
       <details>

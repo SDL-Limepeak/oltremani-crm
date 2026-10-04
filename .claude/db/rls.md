@@ -6,12 +6,15 @@ every function grant. Current state: [../knowissues.md](../knowissues.md).
 
 ## Function grants
 
-`anon` can execute exactly one function: `submit_public_contact`. Everything else is
+`anon` can execute exactly one function: `submit_public_contact`. (It was three between
+the 2026-09-17 round and 2026-10-04: `can_manage_user` and `role_rank` had slipped through
+the same PUBLIC-grant trap.) Everything else is
 revoked from `PUBLIC` **and** from the role — revoking only the role is a no-op while
 `PUBLIC` holds the grant, which is how KI-01 survived a migration that looked applied.
 The five helpers plus `partner_created_by` keep `authenticated` because policy expressions
 call them; `generate_membership_number` and all five trigger functions are closed to both
-API roles.
+API roles. `preview_membership_number(uuid)` (2026-10-04) is `authenticated` only: it backs
+the issue dialog and checks `can_see_partner` itself.
 
 ## Profiles
 
@@ -32,6 +35,9 @@ superuser. The client removed that: every active user now reads *and writes* eve
 
 What survived the change, and why:
 
+- **Groups are readable by every active user since 2026-10-04** (`rpc_select` = `current_role_name() IS NOT NULL`;
+  an inactive account and `anon` read none). The perimeter survives only as a *write* rule: in
+  `rpc_update` (coordinator: `visible_category_ids` or `created_by`) and in `rucr_mod`.
 - `res_user_category_rel` and `visible_category_ids()` still exist. Nothing about contacts
   consults them, but a user's groups are still recorded and still shown.
 - `partner_delete` is still admin/superuser. Deleting a contact cascades to its cards,
@@ -106,9 +112,9 @@ the change, not an omission.
 | res_partner INSERT | ✓ | ✓ | ✓ | ✓ |
 | res_partner UPDATE | ✓ | ✓ | ✓ | ✓ |
 | res_partner DELETE | ✓ | ✓ | ✗ | ✗ |
-| res_partner_category SELECT | ✓ | ✓ | ∩ +own | ∩ +own |
+| res_partner_category SELECT | ✓ | ✓ | ✓ (open since 2026-10-04) | ✓ (same) |
 | res_partner_category INSERT | ✓ | ✓ | ✓ | ✗ |
-| res_partner_category UPDATE | ✓ | ✓ | ∩ (via `rpc_select`, see KI-04) | ✗ |
+| res_partner_category UPDATE | ✓ | ✓ | ∩ own perimeter **or** created by them — written in `rpc_update` itself since 2026-10-04 (was: implied by `rpc_select`, see KI-04) | ✗ |
 | res_partner_category DELETE | ✓ non-system | ✓ non-system | ✗ | ✗ |
 | res_partner_category_rel | ✓ | ✓ | ✓ | ✓ |
 | res_user_category_rel | ✓ | ✓ | ∩, targets limited to volunteer/coordinator | ✗ |

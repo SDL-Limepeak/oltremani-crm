@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { APP_URL, FIXTURES } from "./helpers/env";
 import {
+  count,
   didAffectRows,
   insert,
   login,
@@ -61,17 +62,19 @@ async function post(body: unknown) {
 }
 
 describe("point 7 — the role picklist", () => {
-  test("the five roles are readable by every profile, ordered", async () => {
-    // Redefined by the client on 2026-09-17. The order is the one they listed them in and
-    // is what sort_order encodes, so it is part of the expectation.
+  test("the roles are readable by every profile, ordered", async () => {
+    // Redefined by the client on 2026-09-17 and 2026-10-04. The order is the one they
+    // listed them in and is what sort_order encodes. membro_comunita stays in the table,
+    // inactive and last.
     for (const s of [admin, coordinator, volunteer]) {
       const res = await select(s, "res_partner_role", "select=code,name,sort_order&order=sort_order");
       expect(res.rows.map((r: any) => r.code)).toEqual([
+        "cerco_supporto",
         "attivista",
-        "socio_aps",
-        "membro_comunita",
         "famiglia_ospitante",
         "specialista_diritti",
+        "socio_aps",
+        "membro_comunita",
       ]);
     }
   });
@@ -200,9 +203,72 @@ describe("point 7 — roles arriving from the public form", () => {
     // those answers without an error anywhere.
     expect(codes).toEqual(["attivista", "famiglia_ospitante"]);
   });
+
+  test("the retired membro_comunita is ignored too, now that it is inactive", async () => {
+    if (!serverUp) return;
+    const email = `autotest-retired-${stamp}@oltremani.test`;
+    const res = await post({
+      first_name: "AUTOTEST", last_name: "Retired", email, phone: "+390000014",
+      city: "Varese", province: "VA",
+      role_codes: ["cerco_supporto", "membro_comunita"],
+    });
+    if (res.status === 429) return;
+    expect(res.status).toBe(200);
+    const read = await select(
+      admin, "res_partner", `select=res_partner_role_rel(res_partner_role(code))&email=eq.${email}`,
+    );
+    expect(read.rows[0].res_partner_role_rel.map((x: any) => x.res_partner_role.code)).toEqual(["cerco_supporto"]);
+  });
 });
 
-describe("point 10 — declaring an existing membership card", () => {
+describe("2026-10-04 — \"Sei già socia/socio?\"", () => {
+  const roleCodes = async (email: string) =>
+    (
+      await select(admin, "res_partner", `select=res_partner_role_rel(res_partner_role(code))&email=eq.${email}`)
+    ).rows[0].res_partner_role_rel.map((x: any) => x.res_partner_role.code).sort();
+
+  test("Yes adds socio_aps next to the roles that were ticked", async () => {
+    if (!serverUp) return;
+    const email = `autotest-member-${stamp}@oltremani.test`;
+    const res = await post({
+      first_name: "AUTOTEST", last_name: "Member", email, phone: "+390000015",
+      city: "Varese", province: "VA", role_codes: ["attivista"], is_member: true,
+    });
+    if (res.status === 429) return;
+    // A Yes without a number is a member nobody has verified: it goes to Validation.
+    expect(res.body.membership_status).toBe("declared");
+    expect(res.body.validation).toBe(true);
+    expect(await roleCodes(email)).toEqual(["attivista", "socio_aps"]);
+  });
+
+  test("No sends no card, even if the number field was left filled in", async () => {
+    if (!serverUp) return;
+    const email = `autotest-notmember-${stamp}@oltremani.test`;
+    const res = await post({
+      first_name: "AUTOTEST", last_name: "NotMember", email, phone: "+390000016",
+      city: "Varese", province: "VA", role_codes: ["famiglia_ospitante"],
+      is_member: false, membership_number: `AUTOTEST-NO-${stamp}`,
+    });
+    if (res.status === 429) return;
+    expect(res.body.membership_status).toBe("not_provided");
+    expect(await roleCodes(email)).toEqual(["famiglia_ospitante"]);
+    const cards = await select(admin, "membership_subscription", `select=id&membership_number=eq.AUTOTEST-NO-${stamp}`);
+    expect(cards.rows).toHaveLength(0);
+  });
+});
+
+describe("point 10 — declaring a membership card (rewritten 2026-10-04)", () => {
+  // A declared number is always recorded as an ACTIVE card for the current year, from today
+  // to 31 December. Nobody is refused; whatever is odd is flagged for a human.
+  const cardOf = async (number: string) =>
+    (
+      await select(
+        admin,
+        "membership_subscription",
+        `select=partner_id,status,year,start_date,end_date&membership_number=eq.${number}`,
+      )
+    ).rows;
+
   test("no number given reports not_provided and changes nothing", async () => {
     if (!serverUp) return;
     const res = await post({
@@ -218,8 +284,9 @@ describe("point 10 — declaring an existing membership card", () => {
     expect(res.body.validation).toBe(false);
   });
 
-  test("an unknown number registers the person anyway and flags it for a human", async () => {
+  test("an unknown number creates the active card and flags the contact for a human", async () => {
     if (!serverUp) return;
+    const number = `AUTOTEST-NF-${stamp}`;
     const res = await post({
       first_name: "AUTOTEST",
       last_name: "CardNotFound",
@@ -227,21 +294,26 @@ describe("point 10 — declaring an existing membership card", () => {
       phone: "+390000012",
       city: "Varese", // matches, so validation can only be true because of the card
       province: "VA",
-      membership_number: "0000000",
+      is_member: true,
+      membership_number: number,
     });
     if (res.status === 429) return;
     expect(res.body.ok).toBe(true);
-    expect(res.body.membership_status).toBe("not_found");
+    expect(res.body.membership_status).toBe("created");
     expect(res.body.validation).toBe(true);
 
+    const cards = await cardOf(number);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].partner_id).toBe(res.body.partner_id);
+    expect(cards[0].status).toBe("active");
+    expect(cards[0].end_date).toBe(`${cards[0].year}-12-31`);
+
     const row = (await select(admin, "res_partner", `select=notes&email=eq.${emails.notFound}`)).rows[0];
-    expect(row.notes).toContain("non trovata");
+    expect(row.notes).toContain("creata dal form");
   });
 
-  test("a number belonging to somebody else is NOT reassigned", async () => {
+  test("a number held by somebody else is created anyway, as a flagged duplicate", async () => {
     if (!serverUp) return;
-    // The whole point: membership_number is UNIQUE, so honouring the claim would let
-    // anyone take over another member's card by typing their number.
     const card = (
       await select(admin, "membership_subscription", "select=membership_number,partner_id&membership_number=not.is.null&limit=1")
     ).rows[0];
@@ -253,20 +325,64 @@ describe("point 10 — declaring an existing membership card", () => {
       phone: "+390000013",
       city: "Varese",
       province: "VA",
+      is_member: true,
       membership_number: card.membership_number,
     });
     if (res.status === 429) return;
-    expect(res.body.membership_status).toBe("mismatch");
+    expect(res.body.membership_status).toBe("duplicate");
     expect(res.body.validation).toBe(true);
 
-    // The card still belongs to its original owner.
-    const after = (
-      await select(admin, "membership_subscription", `select=partner_id&membership_number=eq.${card.membership_number}`)
-    ).rows[0];
-    expect(after.partner_id).toBe(card.partner_id);
+    // The original holder keeps theirs; the number now sits on two cards, which is what
+    // makes the warning triangle appear in the app.
+    const holders = (await cardOf(card.membership_number)).map((c: any) => c.partner_id);
+    expect(holders).toContain(card.partner_id);
+    expect(holders).toContain(res.body.partner_id);
+    expect(holders).toHaveLength(2);
 
     const row = (await select(admin, "res_partner", `select=notes&email=eq.${emails.mismatch}`)).rows[0];
-    expect(row.notes).toContain("non riassegnata");
+    expect(row.notes).toContain("già assegnata");
+  });
+
+  test("a namesake of the holder is reconciled instead of duplicated", async () => {
+    if (!serverUp) return;
+    const number = `AUTOTEST-RC-${stamp}`;
+    const holder = await insert(admin, "res_partner", {
+      first_name: "AUTOTEST", last_name: `Recon${stamp}`, email: `autotest-recon-${stamp}@oltremani.test`,
+    });
+    const holderId = holder.rows[0].id;
+    await insert(admin, "membership_subscription", { partner_id: holderId, year: 2026, status: "active", membership_number: number });
+
+    const res = await post({
+      first_name: "autotest", // case does not matter
+      last_name: `RECON${stamp}`,
+      email: `autotest-recon-other-${stamp}@oltremani.test`, // a different address
+      phone: "+390000017",
+      city: "Varese",
+      province: "VA",
+      is_member: true,
+      membership_number: number,
+    });
+    if (res.status === 429) return;
+    expect(res.body.membership_status).toBe("reconciled");
+    expect(res.body.partner_id).toBe(holderId); // merged into the existing contact
+    expect(await cardOf(number)).toHaveLength(1); // no second card
+    expect(await count(admin, "res_partner", `email=eq.autotest-recon-other-${stamp}@oltremani.test`)).toBe(0);
+  });
+
+  test("the contact's own number is confirmed, not created again", async () => {
+    if (!serverUp) return;
+    const number = `AUTOTEST-OWN-${stamp}`;
+    const email = `autotest-own-${stamp}@oltremani.test`;
+    const p = await insert(admin, "res_partner", { first_name: "AUTOTEST", last_name: "Own", email });
+    await insert(admin, "membership_subscription", { partner_id: p.rows[0].id, year: 2026, status: "active", membership_number: number });
+
+    const res = await post({
+      first_name: "AUTOTEST", last_name: "Own", email, phone: "+390000018",
+      city: "Varese", province: "VA", is_member: true, membership_number: number,
+    });
+    if (res.status === 429) return;
+    expect(res.body.membership_status).toBe("confirmed");
+    expect(await cardOf(number)).toHaveLength(1);
   });
 
   test("this suite really ran — or says so loudly", () => {
@@ -275,6 +391,6 @@ describe("point 10 — declaring an existing membership card", () => {
       console.warn("[roles] SKIPPED the HTTP tests: no server. Run: bun run dev");
       return;
     }
-    expect(exercised).toBeGreaterThanOrEqual(3);
+    expect(exercised).toBeGreaterThanOrEqual(6);
   });
 });

@@ -52,7 +52,7 @@ which is also what is published.
 5. After an agent regenerates the schema, **re-run `bun test`** — the 2026-07-25 migrations
    are not in Lovable's changelog and can be silently overwritten.
 
-## Current state — 2026-09-17
+## Current state — 2026-10-04
 
 - Repo, `origin/main`, Lovable and the published build are all on `ee46f54`. The 2026-09-17
   round is live at https://oltremani-crm.lovable.app; the schema changes behind it were
@@ -61,38 +61,51 @@ which is also what is published.
   docs-only commit — check the real one with `mcp__lovable__get_project.latest_commit_sha`,
   and confirm it actually shipped by diffing `public/test-form.html` against the live copy,
   which is served verbatim.
-- 11 tables, 30 RLS policies, 16 functions, 12 triggers, 1 pg_cron job. `tsc` clean,
-  `bun test` 119/119 across nine files (with the dev server up, so the HTTP suites run).
-- **Contacts have no perimeter**: every active user reads and writes every contact.
-  User management is a strict profile hierarchy. Both are new on 2026-09-17 and both
-  invert what earlier docs and tests said — [db/rls.md](db/rls.md).
-- Client feedback: the 2026-07-25 round is closed; the 2026-09-17 round is built but
-  unpublished — [client-feedback.md](client-feedback.md).
-- Row counts: partner 8 · category 10 · city 107 · role 5 · users 2 (+5 test) · sub 8 ·
-  consent 35 · audit ~200 (the suite appends `inbound_form` rows it cannot delete).
-- All eleven migrations applied. See [db/migrations.md](db/migrations.md).
-## Picking this up again — as of 2026-09-17, end of day
+- 11 tables, 17 functions, 12 triggers, 1 pg_cron job. `tsc` clean, `bun test` 170/170
+  across ten files (with the dev server up, so the HTTP suites run). **Round 3 (2026-09-27
+  voice notes) was built and applied to production Postgres on 2026-10-04** and is in the
+  repo from the commit that carries this note; whether Lovable has published it is not
+  recorded here — check `latest_commit_sha` before telling the client it is live.
+- **Contacts and groups have no perimeter for reading**: every active user reads every
+  contact (since 2026-09-17) and every group (since 2026-10-04, "per ora tutti vedono
+  tutto"). Writing groups keeps a perimeter, now written in `rpc_update`. User management is
+  a strict profile hierarchy — [db/rls.md](db/rls.md).
+- Card numbers are `<3-letter group prefix><4 digits>` (`res_partner_category.card_prefix`),
+  warn-only on duplicates and on two active cards in a year; the public form can now create
+  the card — [client-feedback.md](client-feedback.md), round 3.
+- Client feedback: rounds 1 and 2 closed; round 3 built, waiting on whoever maintains the
+  WordPress form (KI-17) — [client-feedback.md](client-feedback.md).
+- Row counts: partner 8 · category 13 · city 107 · role 6 (1 inactive) · users 2 (+5 test) ·
+  sub 8 · consent 35 · audit ~200+ (the suite appends `inbound_form` rows it cannot delete).
+- All thirteen migrations applied. See [db/migrations.md](db/migrations.md).
+- **The five `test-*` accounts exist and `tests/credentials.json` was recreated on
+  2026-10-04** (their password reset; real users untouched). The file is gitignored.
+## Picking this up again — as of 2026-10-04
 
-Everything asked for in the 2026-09-17 round is built, tested, committed and live. Nothing
-is half-finished and there is no work in progress to resume.
+Everything asked for in the 2026-09-27 voice notes (round 3) is built, applied to the
+database, tested (170/170) and committed. Nothing is half-finished. What round 3 changed:
+roles and the "Sei già socia/socio?" question, card numbers per group, the form creating
+the card, warn-only duplicates, groups readable by all — [client-feedback.md](client-feedback.md).
 
-Four things are open. Only two of them are work, and neither is work in this repo:
+Three things are open, one of them work and none of it work in this repo:
 
 | | What | Who |
 |---|---|---|
 | [KI-17](knowissues.md#ki-17) | The WordPress form is very likely still posting the old role codes. Those answers are dropped silently — contact created, no roles | whoever maintains that form |
 | [KI-18](knowissues.md#ki-18) | "King Pin" is inactive and still holds active card 2600004 | one click on Revoca |
-| [KI-16](knowissues.md#ki-16) | The "two active cards" warning cannot fire: a unique index already prevents the state. Kept that way on purpose | client decision if they disagree |
 | [KI-14](knowissues.md#ki-14) | The public endpoint is open by design while in demo | client decision |
 
-Two judgement calls made on the client's behalf that they can reverse cheaply, both
-recorded in [client-feedback.md](client-feedback.md): the role labels are sentence case
-rather than the capitals they wrote, and `res_partner.partner_type` was kept in the
-database after "Tipo" left the product.
+Judgement calls made on the client's behalf that they can reverse cheaply, all recorded in
+[client-feedback.md](client-feedback.md): the role labels are sentence case rather than the
+capitals they wrote; `res_partner.partner_type` was kept in the database after "Tipo" left
+the product; the card prefixes (ALE, APC, CTA, GEN, NAP, PUR, RGS, VAR, SIE, VEN, CUS) were
+proposed by us and are editable from the group dialog; Dario Carpini was left in Chiusi
+although his province is Siena's.
 
 Before touching anything, read [db/rls.md](db/rls.md). The permission model inverted on
-2026-09-17 — contacts have no perimeter, user management is a hierarchy — and anything
-written before that date, in this repo or in your memory of it, describes the opposite.
+2026-09-17 — contacts have no perimeter, user management is a hierarchy — and on 2026-10-04
+groups followed ("per ora tutti vedono tutto"). Anything written before those dates, in this
+repo or in your memory of it, describes the opposite.
 
 - **No known authorization holes.** Twelve of fifteen findings closed on 2026-08-06; the
   three left are a maintenance note (KI-08), a hosting limitation (KI-12) and an open

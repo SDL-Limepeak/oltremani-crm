@@ -20,7 +20,7 @@ const PARTNER_COLUMNS = `id, first_name, last_name, display_name, email, phone, 
    res_city(id, name, province_code),
    res_partner_category_rel(category_id, res_partner_category(id, name, category_type)),
    res_partner_role_rel(role_id, res_partner_role(id, code, name, sort_order)),
-   membership_subscription(id, year, status)`;
+   membership_subscription(id, year, status, membership_number)`;
 
 /** Page size and ceiling for the full-scan path below. */
 const SCAN_PAGE = 500;

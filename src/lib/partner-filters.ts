@@ -52,6 +52,19 @@ export function hasActiveCard(
   );
 }
 
+/**
+ * The card numbers a contact holds as active in the given year, for the contacts table.
+ * Several is possible (and warned about): the register is warn-only since 2026-10-04.
+ */
+export function activeCardNumbers(
+  r: { membership_subscription?: any[] | null },
+  year: number = new Date().getFullYear(),
+): string[] {
+  return (r.membership_subscription ?? [])
+    .filter((s: any) => s.year === year && s.status === "active" && s.membership_number)
+    .map((s: any) => s.membership_number as string);
+}
+
 export function applyPartnerFilters<T extends Record<string, any>>(
   rows: T[],
   f: PartnerFilterInput,

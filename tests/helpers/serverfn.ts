@@ -76,22 +76,30 @@ export async function callServerFn(
   modulePath: string,
   exportName: string,
   data: unknown = {},
+  method: "POST" | "GET" = "POST",
 ): Promise<ServerFnResult> {
   const id = await resolveServerFn(modulePath, exportName);
+  // `createServerFn({ method: "GET" })` answers only GET ("expected GET method. Got POST").
+  // The ones in this repo that are GET take no input, so no payload is sent.
   const res = await fetch(`${APP_URL}/_serverFn/${id}`, {
-    method: "POST",
+    method,
     headers: {
       Authorization: `Bearer ${session.token}`,
       "content-type": "application/json",
       "x-tsr-serverFn": "true",
       accept: "application/json",
     },
-    body: JSON.stringify(await toJSONAsync({ data })),
+    body: method === "POST" ? JSON.stringify(await toJSONAsync({ data })) : undefined,
   });
   const text = await res.text();
   // A thrown server function still answers 200 with the error serialised into the body,
   // which is the same trap as PostgREST's 204: never assert on the status alone.
-  const denied = res.status >= 400 || /"\$TSR\/Error"|Error\b/.test(text);
+  // A PostgREST error that a handler rethrows (`throw error`, as the RLS refusals do) is a
+  // plain object, not an Error: it has no "Error" in it, only code/details/hint/message.
+  const denied =
+    res.status >= 400 ||
+    /"\$TSR\/Error"|Error\b/.test(text) ||
+    text.includes('"k":["code","details","hint","message"]');
   return { status: res.status, text, denied };
 }
 

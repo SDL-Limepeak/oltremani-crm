@@ -21,6 +21,8 @@ export type CategoryWithCounts = {
   address: string | null;
   city: string | null;
   province_code: string | null;
+  // Three capital letters, the prefix of the card numbers issued for this group.
+  card_prefix: string | null;
   iban: string | null;
   created_at: string;
   updated_at: string;
@@ -69,8 +71,19 @@ const CatInput = z.object({
   address: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   province_code: z.string().nullable().optional(),
+  // Empty means "no prefix". Three capital letters otherwise; unique across groups.
+  card_prefix: z.union([
+    z.literal("").transform(() => null),
+    z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "La sigla tessere sono 3 lettere"),
+  ]).nullable().optional(),
   iban: z.string().nullable().optional(),
 });
+
+// uq_rpc_card_prefix: two groups cannot share a prefix, or their numbering would collide.
+function categoryError(error: { code?: string; message: string }, prefix?: string | null) {
+  if (error.code === "23505") return new Error(prefix ? `La sigla ${prefix} è già usata da un altro gruppo` : "Sigla già usata da un altro gruppo");
+  return error;
+}
 
 export const upsertCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -81,7 +94,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
     if (data.id) {
       const { data: old } = await supabase.from("res_partner_category").select("*").eq("id", data.id).maybeSingle();
       const { data: upd, error } = await supabase.from("res_partner_category").update(data).eq("id", data.id).select().single();
-      if (error) throw error;
+      if (error) throw categoryError(error, data.card_prefix);
       row = upd;
       await supabase.from("audit_log").insert({
         log_type: "record_change", action: "update", model_name: "res_partner_category",
@@ -97,7 +110,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
         .insert({ ...data, created_by: userId })
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw categoryError(error, data.card_prefix);
       row = ins;
       await supabase.from("audit_log").insert({
         log_type: "record_change", action: "create", model_name: "res_partner_category",
