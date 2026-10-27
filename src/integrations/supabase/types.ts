@@ -113,11 +113,13 @@ export type Database = {
         Row: {
           accepted: boolean
           accepted_at: string | null
+          channel: string | null
           consent_type: string
           created_at: string
           id: string
           ip_address: string | null
           notes: string | null
+          operator_id: string | null
           partner_id: string
           source: string | null
           user_agent: string | null
@@ -126,11 +128,13 @@ export type Database = {
         Insert: {
           accepted?: boolean
           accepted_at?: string | null
+          channel?: string | null
           consent_type: string
           created_at?: string
           id?: string
           ip_address?: string | null
           notes?: string | null
+          operator_id?: string | null
           partner_id: string
           source?: string | null
           user_agent?: string | null
@@ -139,17 +143,26 @@ export type Database = {
         Update: {
           accepted?: boolean
           accepted_at?: string | null
+          channel?: string | null
           consent_type?: string
           created_at?: string
           id?: string
           ip_address?: string | null
           notes?: string | null
+          operator_id?: string | null
           partner_id?: string
           source?: string | null
           user_agent?: string | null
           version?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "privacy_consent_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "res_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "privacy_consent_partner_id_fkey"
             columns: ["partner_id"]
@@ -196,69 +209,6 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "res_partner_category"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      res_partner_role: {
-        Row: {
-          code: string
-          created_at: string
-          id: string
-          name: string
-          sort_order: number
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          id?: string
-          name: string
-          sort_order?: number
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          id?: string
-          name?: string
-          sort_order?: number
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      res_partner_role_rel: {
-        Row: {
-          created_at: string
-          partner_id: string
-          role_id: string
-        }
-        Insert: {
-          created_at?: string
-          partner_id: string
-          role_id: string
-        }
-        Update: {
-          created_at?: string
-          partner_id?: string
-          role_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "res_partner_role_rel_partner_id_fkey"
-            columns: ["partner_id"]
-            isOneToOne: false
-            referencedRelation: "res_partner"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "res_partner_role_rel_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "res_partner_role"
             referencedColumns: ["id"]
           },
         ]
@@ -335,8 +285,8 @@ export type Database = {
         Row: {
           activation_date: string | null
           address: string | null
-          category_type: string
           card_prefix: string | null
+          category_type: string
           city: string | null
           created_at: string
           created_by: string | null
@@ -357,8 +307,8 @@ export type Database = {
         Insert: {
           activation_date?: string | null
           address?: string | null
-          category_type?: string
           card_prefix?: string | null
+          category_type?: string
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -379,8 +329,8 @@ export type Database = {
         Update: {
           activation_date?: string | null
           address?: string | null
-          category_type?: string
           card_prefix?: string | null
+          category_type?: string
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -437,6 +387,69 @@ export type Database = {
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "res_partner"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      res_partner_role: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      res_partner_role_rel: {
+        Row: {
+          created_at: string
+          partner_id: string
+          role_id: string
+        }
+        Insert: {
+          created_at?: string
+          partner_id: string
+          role_id: string
+        }
+        Update: {
+          created_at?: string
+          partner_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "res_partner_role_rel_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "res_partner"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "res_partner_role_rel_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "res_partner_role"
             referencedColumns: ["id"]
           },
         ]
@@ -509,33 +522,47 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_user: {
+        Args: { _target_role: string; _uid: string }
+        Returns: boolean
+      }
       can_see_partner: {
         Args: { _partner_id: string; _uid: string }
         Returns: boolean
       }
       current_role_name: { Args: never; Returns: string }
+      expire_memberships: { Args: never; Returns: number }
+      generate_membership_number: {
+        Args: { p_partner: string }
+        Returns: string
+      }
       has_role: { Args: { _role: string; _uid: string }; Returns: boolean }
       is_admin_or_super: { Args: { _uid: string }; Returns: boolean }
-      visible_category_ids: { Args: { _uid: string }; Returns: string[] }
+      partner_created_by: {
+        Args: { _partner_id: string; _uid: string }
+        Returns: boolean
+      }
       preview_membership_number: { Args: { p_partner: string }; Returns: Json }
+      role_rank: { Args: { _role: string }; Returns: number }
       submit_public_contact: {
         Args: {
-          p_first_name?: string | null
-          p_last_name?: string | null
-          p_email?: string | null
-          p_phone?: string | null
-          p_city?: string | null
-          p_province?: string | null
-          p_privacy_consents?: Json | null
-          p_ip_address?: string | null
-          p_user_agent?: string | null
-          p_notes?: string | null
-          p_role_codes?: string[] | null
-          p_membership_number?: string | null
-          p_is_member?: boolean | null
+          p_city?: string
+          p_email?: string
+          p_first_name?: string
+          p_ip_address?: string
+          p_is_member?: boolean
+          p_last_name?: string
+          p_membership_number?: string
+          p_notes?: string
+          p_phone?: string
+          p_privacy_consents?: Json
+          p_province?: string
+          p_role_codes?: string[]
+          p_user_agent?: string
         }
         Returns: Json
       }
+      visible_category_ids: { Args: { _uid: string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
@@ -554,12 +581,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -583,11 +610,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -608,11 +635,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -633,11 +660,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -650,11 +677,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
