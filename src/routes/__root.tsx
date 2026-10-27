@@ -106,9 +106,19 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="it">
       <head>
+        {/* TEMPORARY REDIRECT to the new production site (2026-10-27). Remove this block to restore the old app. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'window.location.replace("https://vps-ddad6f2e.vps.ovh.net/auth");',
+          }}
+        />
         <HeadContent />
       </head>
       <body>
+        <noscript>
+          Questo sito si è spostato:{" "}
+          <a href="https://vps-ddad6f2e.vps.ovh.net/auth">https://vps-ddad6f2e.vps.ovh.net</a>
+        </noscript>
         {children}
         <Scripts />
       </body>
